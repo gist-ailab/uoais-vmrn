@@ -291,6 +291,10 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=str, default="0", help="gpu id")
     args = parser.parse_args()
     
+    if args.config_file == '':
+        args.config_file = 'configs/cocoa.yaml'
+        args.gpu = '1'
+
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)
     launch(

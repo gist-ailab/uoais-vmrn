@@ -76,4 +76,4 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-OUTPUT_DIR: "output/R50_rgb_mlc_occatmask_hom_concat"
+OUTPUT_DIR: "output/COCOA/UOAIS/CU03/"

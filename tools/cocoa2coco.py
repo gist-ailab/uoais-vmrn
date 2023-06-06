@@ -190,8 +190,8 @@ class COCOA2COCO():
 
 
 if __name__ == '__main__':
-    val_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/COCO_amodal_val2014.json'
-    train_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/COCO_amodal_train2014.json'
+    val_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/cocoa_val.json'
+    train_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/cocoa_train.json'
     
     print('val')
     val_converter = COCOA2COCO(val_path)

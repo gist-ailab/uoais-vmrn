@@ -27,8 +27,8 @@ from .register_cocoa import register_cocoa_instances
 
 
 _PREDEFINED_SPLITS_COCOA = {
-    "cocoa_train": ("COCO/train2014", "COCO/annotations/COCO_amodal_train2014.json"),
-    "cocoa_val": ("COCO/val2014", "COCO/annotations/COCO_amodal_val2014.json")
+    "cocoa_train": ("COCO/train2014/", "COCO/annotations/cocoa_train.json"),
+    "cocoa_val": ("COCO/val2014/", "COCO/annotations/cocoa_val.json")
 }
 
 def register_all_cocoa(root='./datasets'):
