@@ -23,6 +23,22 @@ from detectron2.data import MetadataCatalog, DatasetCatalog
 from .builtin_meta import _get_builtin_metadata
 from .register_uoais import register_uoais_instances
 from .register_wisdom import register_wisdom_instances
+from .register_cocoa import register_cocoa_instances
+
+
+_PREDEFINED_SPLITS_COCOA = {
+    "cocoa_train": ("COCO/train2014", "COCO/annotations/COCO_amodal_train2014.json"),
+    "cocoa_val": ("COCO/val2014", "COCO/annotations/COCO_amodal_val2014.json")
+}
+
+def register_all_cocoa(root='./datasets'):
+    for key, (image_root, json_file) in _PREDEFINED_SPLITS_COCOA.items():
+        register_cocoa_instances(
+            key,
+            {},
+            os.path.join(root, json_file) if "://" not in json_file else json_file,
+            os.path.join(root, image_root),
+        )
 
 
 
@@ -74,3 +90,4 @@ def register_all_wisdom(root="./datasets"):
 # Register them all under "./datasets"
 register_all_uoais()
 register_all_wisdom()
+register_all_cocoa()

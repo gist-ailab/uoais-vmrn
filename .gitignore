@@ -2,9 +2,11 @@
 output/
 results/
 datasets
+Annotations/
 !adet/data/datasets
 ./output
 vis/
+cocoa-data-vis/
 vis_pred/
 uoais
 d.png

@@ -232,3 +232,15 @@ If you use our work in a research project, please cite our work:
 [5] Xiao, Yuting, et al. "Amodal Segmentation Based on Visible Region Segmentation and Shape Prior." Proceedings of the AAAI Conference on Artificial Intelligence. Vol. 35. No. 4. 2021.
 [6] DENNINGER, Maximilian, et al. Blenderproc. arXiv preprint arXiv:1911.01911, 2019.
 ```
+
+
+## Set up
+```
+python setup.py build develop
+
+mkdir datasets && cd datasets
+ln -s /ailab_mat/dataset/InstaOrder/data/COCO
+ln -s /ailab_mat/dataset/InstaOrder/data/KINS
+
+
+```
