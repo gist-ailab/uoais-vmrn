@@ -40,6 +40,12 @@ MODEL:
     NAME: "VisibleMaskRCNNConvUpsampleHead"
     NUM_CONV: 4
     POOLER_RESOLUTION: 14
+  ORDER_RECOVERY_ON: True
+  ROI_ORDER_HEAD:
+    NAME: "OrderRecoveryHead"
+  #   NUM_FC: 2
+  #   NUM_CONV: 4
+    POOLER_RESOLUTION: 28
   BOXINST:
     ENABLED: False
   MASK_ON: True
@@ -51,8 +57,8 @@ MODEL:
   GUIDANCE_TYPE: "concat"
 
 SOLVER:
-  IMS_PER_BATCH: 2
-  BASE_LR: 0.00125  
+  IMS_PER_BATCH: 8
+  BASE_LR: 0.01 
   STEPS: (60000, 80000)
   MAX_ITER: 90000
   WARMUP_ITERS: 5000
@@ -76,4 +82,4 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-OUTPUT_DIR: "output/COCOA/UOAIS/CU03/"
+OUTPUT_DIR: "output/COCOA/UOAIS/CU04/"

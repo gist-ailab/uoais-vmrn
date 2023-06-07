@@ -260,6 +260,10 @@ def setup(args):
 
 def main(args):
     cfg = setup(args)
+    if args.config_file == '':
+        args.gpu = str(0)
+        args.config_file = 'configs/R50_rgbdconcat_mlc_occatmask_hom_concat.yaml'
+        # args.config_file = 'configs/meta.yaml'
 
     if args.eval_only:
         model = Trainer.build_model(cfg)

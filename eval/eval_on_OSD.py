@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset-path",
         type=str,
-        default="./datasets/OSD-0.2-depth",
+        default="/home/heeseon_rho/src/uoais-vmrn/datasets/OSD-0.20-depth",
         help="path to the OSD dataset"
     )
 
@@ -38,8 +38,9 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     if args.vis_only:
-        eval_visible_on_OSD(args)
+        pass
+        # eval_visible_on_OSD(args)
     else:
         eval_amodal_occ_on_OSD(args)
-        eval_visible_on_OSD(args)
+        # eval_visible_on_OSD(args)
     

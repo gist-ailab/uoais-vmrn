@@ -25,6 +25,7 @@ from .faster_rcnn import FastRCNNOutputLayers, FastRCNNOutputs
 from .bbox_pooler import BBOXROIPooler
 from .pooler import ROIPooler
 from .box_head import build_box_head
+from .order_head import build_order_recovery_head
 from detectron2.utils.events import get_event_storage
 
 def select_foreground_proposals(proposals, bg_label):
@@ -279,7 +280,9 @@ class ORCNNROIHeads(ROIHeads):
         if self.occ_cls_at_mask:
             self._init_occ_cls_mask_head(cfg)
 
-
+        self.order_recovery = cfg.MODEL.ORDER_RECOVERY_ON
+        if self.order_recovery:
+            self._init_order_recovery_head(cfg)
 
     def _init_box_head(self, cfg):
         # fmt: off
@@ -324,6 +327,17 @@ class ORCNNROIHeads(ROIHeads):
             )
         self.box2box_transform = Box2BoxTransform(weights=cfg.MODEL.ROI_BOX_HEAD.BBOX_REG_WEIGHTS)
         self.smooth_l1_beta           = cfg.MODEL.ROI_BOX_HEAD.SMOOTH_L1_BETA
+
+    def _init_order_recovery_head(self, cfg):
+
+        in_channels = 5
+        # in_channels = [self.feature_channels[f] for f in self.in_features][0]
+        pooler_resolution = cfg.MODEL.ROI_ORDER_HEAD.POOLER_RESOLUTION
+
+        self.order_recovery_head = build_order_recovery_head(
+            cfg, ShapeSpec(channels=in_channels, height=pooler_resolution, width=pooler_resolution)
+        )
+
 
     def _init_amodal_mask_head(self, cfg):
         # fmt: off
@@ -395,7 +409,12 @@ class ORCNNROIHeads(ROIHeads):
         if self.training:
             features_list = [features[f] for f in self.in_features]
             losses, box_head_features = self._forward_box(features_list, proposals)
-            amodal_vis_occ_losses = self._forward_masks(features, proposals, box_head_features)
+            if self.order_recovery:
+                amodal_vis_occ_losses, pred_mask_logits, gt_masks_per_image_list = self._forward_masks(features, proposals, box_head_features)
+                order_recovery_losses = self._forward_orders(images, pred_mask_logits, gt_masks_per_image_list)
+                losses.update(order_recovery_losses)
+            else:
+                amodal_vis_occ_losses = self._forward_masks(features, proposals, box_head_features)
             losses.update(amodal_vis_occ_losses)
             
             return proposals, losses
@@ -407,6 +426,60 @@ class ORCNNROIHeads(ROIHeads):
             pred_instances, box_head_features = self._forward_box(features_list, proposals)
             pred_instances = self._forward_masks(features, pred_instances, box_head_features)
             return pred_instances, {}
+        
+    def _forward_orders(self, images: ImageList, pred_mask_logits: torch.Tensor, gt_masks_per_image_list: List[torch.Tensor]):
+        """
+        Forward logic of the order recovery branch.
+        Args:
+            images (ImageList): input images
+            pred_visible_mask_logits (Tensor): A tensor of shape (R, H, W) or (R, 1, H, W)
+                or (R, 2, H, W) for class-specific or class-agnostic, where R is the total number
+                of predicted boxes for all images, H and W are height and width of the feature maps.
+        Returns:
+            Order Recovery Loss
+        """
+        mask_idx = 0
+        for B, image in enumerate(images):
+            print(image.shape)
+            pred_masks_per_image = pred_mask_logits[mask_idx:mask_idx+len(gt_masks_per_image_list[B])]
+            gt_masks_per_image = gt_masks_per_image_list[B]
+            mask_idx += len(gt_masks_per_image_list[B])
+            print(gt_masks_per_image.shape)
+            print(pred_masks_per_image.shape)
+            print()
+
+            inputs1 = []
+            inputs2 = []
+            for i, mask_i in enumerate(gt_masks_per_image):
+                for j, mask_j in enumerate(gt_masks_per_image):
+                    if i >= j:
+                        continue
+                    im, mi, mj = self._preprocess_order(image, mask_i.unsqueeze(0), mask_j.unsqueeze(0))
+                    inputs1.append(torch.cat([mi, mj, im], dim=0).unsqueeze(0))
+                    inputs2.append(torch.cat([mj, mi, im], dim=0).unsqueeze(0))
+
+            outputs1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+            outputs2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+
+            # loss = self.order_criterion()
+
+    def _preprocess_order(self, image, mask_i, mask_j):
+        import torchvision.transforms as T
+        from torchvision.transforms.functional import pad
+        ## pad image/gt_mask    (480,640) -> (640,640)
+        image = pad(image, (0, 80, 0, 80), 0, 'constant')
+        mask_i = pad(mask_i, (0, 80, 0, 80), 0, 'constant')
+        mask_j = pad(mask_j, (0, 80, 0, 80), 0, 'constant')
+
+        ## resize image/gt_mask (640,640) -> (256,256)
+        image = T.Resize((256,256))(image)
+        mask_i = T.Resize((256,256))(mask_i)
+        mask_j = T.Resize((256,256))(mask_j)
+
+        ## resize pred_mask      (28,28)  -> (256,256)
+
+        return image, mask_i, mask_j
+
 
     def _forward_box(self, features: List[torch.Tensor], proposals: List[Instances]
                     ) -> Union[Dict[str, torch.Tensor], List[Instances]]:
@@ -489,13 +562,13 @@ class ORCNNROIHeads(ROIHeads):
 
         if pred_target == "V":
             mask_logits, output_features  = self.visible_mask_head(input_features, proposals, box_head_features)
-            loss = mask_rcnn_loss(mask_logits, proposals, "gt_visible_masks")
+            loss, pred_mask_logits, gt_masks_per_image_list = mask_rcnn_loss(mask_logits, proposals, "gt_visible_masks")
             losses["loss_visible_mask"] = loss
             logits["visible"] = mask_logits
             
         elif pred_target == "A":
             mask_logits, output_features = self.amodal_mask_head(input_features, proposals, box_head_features)
-            loss = mask_rcnn_loss(mask_logits, proposals, "gt_masks")
+            loss, pred_mask_logits, gt_masks_per_image_list = mask_rcnn_loss(mask_logits, proposals, "gt_masks")
             losses["loss_amodal_mask"] = loss
             logits["amodal"] = mask_logits
 
@@ -511,6 +584,9 @@ class ORCNNROIHeads(ROIHeads):
             loss = F.cross_entropy(occ_cls_logits, gt_occludeds, reduction="mean", 
                                 weight=torch.Tensor([1, n_noocc/n_occ]).to(device=gt_occludeds.device))
             losses["loss_occ_cls"] = loss
+        
+        if self.order_recovery and pred_target == "V":
+            return losses, output_features, logits, pred_mask_logits, gt_masks_per_image_list
             
         return losses, output_features, logits
 
@@ -576,9 +652,14 @@ class ORCNNROIHeads(ROIHeads):
             logits = {}
             mask_features_list = []
             for pred_target in self.prediction_order:
-                losses, mask_features, logits = \
-                    self._forward_single_mask(pred_target, features, mask_features_list,\
-                                            proposals, box_head_features, losses, logits)
+                if self.order_recovery and pred_target == "V":
+                    losses, mask_features, logits, pred_mask_logits, gt_masks_per_image_list = \
+                        self._forward_single_mask(pred_target, features, mask_features_list,\
+                                                proposals, box_head_features, losses, logits)
+                else:
+                    losses, mask_features, logits = \
+                        self._forward_single_mask(pred_target, features, mask_features_list,\
+                                                proposals, box_head_features, losses, logits)
                 mask_features_list.append(mask_features)
             
             # ORCNN loss
@@ -587,6 +668,8 @@ class ORCNNROIHeads(ROIHeads):
                 occ_mask_loss = occlusion_mask_rcnn_loss(occ_mask_logits, proposals, False)
                 losses["loss_occlusion_mask"] = occ_mask_loss
 
+            if self.order_recovery:
+                return losses, pred_mask_logits, gt_masks_per_image_list
             return losses
         else:
             # pred_boxes = [x.pred_boxes for x in instances]

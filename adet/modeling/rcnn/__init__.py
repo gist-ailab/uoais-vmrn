@@ -4,3 +4,4 @@ from .mask_heads import (
 	build_visible_mask_head
 	)
 from .pooler import ROIPooler
+from .order_head import build_order_recovery_head
