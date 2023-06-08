@@ -5,3 +5,4 @@ from .mask_heads import (
 	)
 from .pooler import ROIPooler
 from .order_head import build_order_recovery_head
+from .instaorder import InstaRCNN

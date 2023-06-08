@@ -20,6 +20,7 @@ import fvcore.nn.weight_init as weight_init
 
 from torch.nn import functional as F
 
+from detectron2.layers import paste_masks_in_image
 from .mask_heads import *
 from .faster_rcnn import FastRCNNOutputLayers, FastRCNNOutputs
 from .bbox_pooler import BBOXROIPooler
@@ -283,6 +284,7 @@ class ORCNNROIHeads(ROIHeads):
         self.order_recovery = cfg.MODEL.ORDER_RECOVERY_ON
         if self.order_recovery:
             self._init_order_recovery_head(cfg)
+            self.order_criterion = nn.BCELoss()
 
     def _init_box_head(self, cfg):
         # fmt: off
@@ -398,6 +400,7 @@ class ORCNNROIHeads(ROIHeads):
         features: Dict[str, torch.Tensor],
         proposals: List[Instances],
         targets: Optional[List[Instances]] = None,
+        gt_rel_mat: List[List] = None,
     ) -> Tuple[List[Instances], Dict[str, torch.Tensor]]:
         """
         See :class:`ROIHeads.forward`.
@@ -411,8 +414,13 @@ class ORCNNROIHeads(ROIHeads):
             losses, box_head_features = self._forward_box(features_list, proposals)
             if self.order_recovery:
                 amodal_vis_occ_losses, pred_mask_logits, gt_masks_per_image_list = self._forward_masks(features, proposals, box_head_features)
-                order_recovery_losses = self._forward_orders(images, pred_mask_logits, gt_masks_per_image_list)
-                losses.update(order_recovery_losses)
+                order_recovery_losses = self._forward_orders(images, pred_mask_logits, gt_masks_per_image_list, gt_rel_mat)
+                del gt_rel_mat
+                del pred_mask_logits
+                del gt_masks_per_image_list
+                torch.cuda.empty_cache()
+                if order_recovery_losses:
+                    losses.update({'order_recovery_loss': order_recovery_losses})
             else:
                 amodal_vis_occ_losses = self._forward_masks(features, proposals, box_head_features)
             losses.update(amodal_vis_occ_losses)
@@ -427,7 +435,7 @@ class ORCNNROIHeads(ROIHeads):
             pred_instances = self._forward_masks(features, pred_instances, box_head_features)
             return pred_instances, {}
         
-    def _forward_orders(self, images: ImageList, pred_mask_logits: torch.Tensor, gt_masks_per_image_list: List[torch.Tensor]):
+    def _forward_orders(self, images: ImageList, pred_mask_logits: torch.Tensor, gt_masks_per_image_list: List[torch.Tensor], gt_rel_mat: List[List]) -> torch.Tensor:
         """
         Forward logic of the order recovery branch.
         Args:
@@ -439,44 +447,106 @@ class ORCNNROIHeads(ROIHeads):
             Order Recovery Loss
         """
         mask_idx = 0
+        loss = 0.
+        # loss = torch.FloatTensor(0).to(device=images.device)
         for B, image in enumerate(images):
-            print(image.shape)
+            rel_mat = gt_rel_mat[B]
+            # print(image.shape)
             pred_masks_per_image = pred_mask_logits[mask_idx:mask_idx+len(gt_masks_per_image_list[B])]
             gt_masks_per_image = gt_masks_per_image_list[B]
             mask_idx += len(gt_masks_per_image_list[B])
-            print(gt_masks_per_image.shape)
-            print(pred_masks_per_image.shape)
-            print()
+            # print(gt_masks_per_image.shape)
+            # print(pred_masks_per_image.shape)
+            # print()
 
-            inputs1 = []
-            inputs2 = []
+            inputs1, gt_order1 = [], []
+            inputs2, gt_order2 = [], []
             for i, mask_i in enumerate(gt_masks_per_image):
                 for j, mask_j in enumerate(gt_masks_per_image):
-                    if i >= j:
-                        continue
+                    if i >= j: continue
+                    if i >= len(rel_mat) or j >= len(rel_mat): continue
                     im, mi, mj = self._preprocess_order(image, mask_i.unsqueeze(0), mask_j.unsqueeze(0))
                     inputs1.append(torch.cat([mi, mj, im], dim=0).unsqueeze(0))
                     inputs2.append(torch.cat([mj, mi, im], dim=0).unsqueeze(0))
+                    
+                    if rel_mat[i][j] == -1:     ## i is occluded by j
+                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
+                        gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> yes -> 1
+                    elif rel_mat[i][j] == 0:    ## none
+                        gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> no -> 0
+                        gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> no -> 0
+                    elif rel_mat[i][j] == 1:    ## i is occluding j
+                        gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> yes -> 1
+                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+            
+                    if len(gt_order1) >= 5:
+                        gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+                        gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+                        output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                        output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
 
-            outputs1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-            outputs2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+                        loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
 
-            # loss = self.order_criterion()
+                        inputs1, gt_order1 = [], []
+                        inputs2, gt_order2 = [], []
+            
+            if len(gt_order1):
+                gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+                gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+                output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+
+                loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+            del rel_mat, gt_masks_per_image, pred_masks_per_image, gt_order1, gt_order2
+
+            # for i, mask_i in enumerate(gt_masks_per_image):
+            #     for j, mask_j in enumerate(gt_masks_per_image):
+            #         if i >= j: continue
+            #         if i >= len(rel_mat) or j >= len(rel_mat): continue
+            #         inputs1, gt_order1 = [], []
+            #         inputs2, gt_order2 = [], []
+            #         im, mi, mj = self._preprocess_order(image, mask_i.unsqueeze(0), mask_j.unsqueeze(0))
+            #         inputs1.append(torch.cat([mi, mj, im], dim=0).unsqueeze(0))
+            #         inputs2.append(torch.cat([mj, mi, im], dim=0).unsqueeze(0))
+                    
+            #         if rel_mat[i][j] == -1:     ## i is occluded by j
+            #             gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
+            #             gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> yes -> 1
+            #         elif rel_mat[i][j] == 0:    ## none
+            #             gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> no -> 0
+            #             gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> no -> 0
+            #         elif rel_mat[i][j] == 1:    ## i is occluding j
+            #             gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> yes -> 1
+            #             gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+            
+            #         if len(gt_order1) == 0: continue
+            #         gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+            #         gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+            #         output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+            #         output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+
+            #         loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+            # del rel_mat, gt_masks_per_image, pred_masks_per_image, gt_order1, gt_order2
+
+
+        return loss
 
     def _preprocess_order(self, image, mask_i, mask_j):
         import torchvision.transforms as T
         from torchvision.transforms.functional import pad
+        from detectron2.layers import paste_masks_in_image
         ## pad image/gt_mask    (480,640) -> (640,640)
         image = pad(image, (0, 80, 0, 80), 0, 'constant')
         mask_i = pad(mask_i, (0, 80, 0, 80), 0, 'constant')
         mask_j = pad(mask_j, (0, 80, 0, 80), 0, 'constant')
 
         ## resize image/gt_mask (640,640) -> (256,256)
-        image = T.Resize((256,256))(image)
-        mask_i = T.Resize((256,256))(mask_i)
-        mask_j = T.Resize((256,256))(mask_j)
+        image = T.Resize((64,64))(image)
+        mask_i = T.Resize((64,64))(mask_i)
+        mask_j = T.Resize((64,64))(mask_j)
 
-        ## resize pred_mask      (28,28)  -> (256,256)
+        ## resize pred_mask      (28,28)  -> (64,64)
+
 
         return image, mask_i, mask_j
 

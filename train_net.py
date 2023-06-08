@@ -33,7 +33,7 @@ from detectron2.data import MetadataCatalog, build_detection_train_loader, build
 from detectron2.modeling import GeneralizedRCNNWithTTA
 from detectron2.utils.logger import setup_logger
 
-from adet.evaluation import AmodalVisibleEvaluator, VisibleEvaluator, AmodalEvaluator
+from adet.evaluation import AmodalVisibleEvaluator, VisibleEvaluator, AmodalEvaluator, TextEvaluator
 from adet.config import get_cfg
 from adet.data.dataset_mapper import DatasetMapperWithBasis
 from adet.checkpoint import AdetCheckpointer
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     
     if args.config_file == '':
         args.config_file = 'configs/cocoa.yaml'
-        args.gpu = '1'
+        args.gpu = '0'
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)

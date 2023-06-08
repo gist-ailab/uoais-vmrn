@@ -292,15 +292,13 @@ class OrderRecoveryHead(nn.Module):
         init_weights(self.model, 'xavier')
         self.model.conv1 = nn.Conv2d(5, 64, kernel_size=7, stride=2, padding=3,)
         self.model.fc = nn.Linear(2048, 2)
-        self.model.cuda()
+        # self.model.cuda()
         self.batch_size = batch_size
         self.input_channels = input_shape.channels
 
     def forward(self, x):
         x = self.model(x)
         return x
-
-
 
     @property
     def device(self):

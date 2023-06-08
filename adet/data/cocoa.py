@@ -126,4 +126,4 @@ if __name__ == "__main__":
         objs = [obj["category_id"] for obj in d["annotations"]]
         visualize_rel_mat(d["rel_mat"], objs)
         i+=1
-        if i==5: break
+        if i==50: break

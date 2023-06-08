@@ -102,10 +102,18 @@ class COCOA2COCO():
 
     def make_annot(self):
         annot_idx = 0
+        max_obj = 0
 
         for image_idx, (image, annot) in enumerate(zip(self.image_list, self.annot_list)):
             
-            objs_num = annot['size']
+            # objs_num = annot['size']
+            objs_num = len(annot['regions'])
+            if annot['size'] != len(annot['regions']):
+                print('size error', annot['size'], len(annot['regions']))
+            if objs_num >= 50:
+                print(objs_num)
+            if objs_num > max_obj:
+                max_obj = objs_num
             rel_mat = np.zeros((objs_num, objs_num))
             depth_constraint = annot['depth_constraint']
             constraint = depth_constraint.split(',')
@@ -115,10 +123,14 @@ class COCOA2COCO():
                 for c in constraint:
                     occluder, occludee = c.split('-')
                     occluder, occludee = int(occluder)-1, int(occludee)-1
-                    rel_mat[occluder][occludee] = -1
-                    rel_mat[occludee][occluder] = 1
+                    # rel_mat[occluder][occludee] = -1
+                    # rel_mat[occludee][occluder] = 1
+                    rel_mat[occludee][occluder] = -1
+                    rel_mat[occluder][occludee] = 1
 
-            for obj_idx, obj in enumerate(annot['regions']):
+            # for obj_idx, obj in enumerate(annot['regions']):
+            for obj_idx in range(objs_num):
+                obj = annot['regions'][obj_idx]
                 segm = [obj['segmentation']]
 
                 if 'visible_mask' in obj:
@@ -177,6 +189,7 @@ class COCOA2COCO():
             # print()
 
             # if image_idx == 30: break
+        print('max: ', max_obj)
 
     def combine_annot(self):
         self.make_annot()
@@ -190,19 +203,19 @@ class COCOA2COCO():
 
 
 if __name__ == '__main__':
-    val_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/cocoa_val.json'
-    train_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/cocoa_train.json'
+    val_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/COCO_amodal_val2014.json'
+    train_path = '/ailab_mat/dataset/InstaOrder/data/COCO/annotations/COCO_amodal_train2014.json'
     
-    print('val')
-    val_converter = COCOA2COCO(val_path)
-    val_annot = val_converter.combine_annot()
-    with open('Annotations/cocoa_val.json', 'w') as f:
-        json.dump(val_annot, f)
-
     print('train')
     train_converter = COCOA2COCO(train_path)
     train_annot = train_converter.combine_annot()
     with open('Annotations/cocoa_train.json', 'w') as f:
         json.dump(train_annot, f)
+
+    print('val')
+    val_converter = COCOA2COCO(val_path)
+    val_annot = val_converter.combine_annot()
+    with open('Annotations/cocoa_val.json', 'w') as f:
+        json.dump(val_annot, f)
 
 
