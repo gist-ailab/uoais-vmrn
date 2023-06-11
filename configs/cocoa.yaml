@@ -66,8 +66,8 @@ SOLVER:
   CLIP_GRADIENTS:
     ENABLED: True
 DATASETS:
-  TRAIN: ("cocoa_train",)
-  TEST: ("cocoa_val",)
+  TRAIN: ("cocoa30_train",)
+  TEST: ("cocoa30_val",)
     
 TEST:
   EVAL_PERIOD: 90000 # no evaluation if 0
@@ -82,4 +82,4 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-OUTPUT_DIR: "output/COCOA/UOAIS/CU06/"
+OUTPUT_DIR: "output/COCOA/UOAIS/CU09/"

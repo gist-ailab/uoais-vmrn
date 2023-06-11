@@ -28,7 +28,13 @@ from .register_cocoa import register_cocoa_instances
 
 _PREDEFINED_SPLITS_COCOA = {
     "cocoa_train": ("COCO/train2014/", "COCO/annotations/cocoa_train.json"),
-    "cocoa_val": ("COCO/val2014/", "COCO/annotations/cocoa_val.json")
+    "cocoa_val": ("COCO/val2014/", "COCO/annotations/cocoa_val.json"),
+    "cocoa10_train": ("COCO/train2014/", "COCO/annotations/cocoa10_train.json"),
+    "cocoa10_val": ("COCO/val2014/", "COCO/annotations/cocoa10_val.json"),
+    "cocoa20_train": ("COCO/train2014/", "COCO/annotations/cocoa20_train.json"),
+    "cocoa20_val": ("COCO/val2014/", "COCO/annotations/cocoa20_val.json"),
+    "cocoa30_train": ("COCO/train2014/", "COCO/annotations/cocoa30_train.json"),
+    "cocoa30_val": ("COCO/val2014/", "COCO/annotations/cocoa30_val.json"),
 }
 
 def register_all_cocoa(root='./datasets'):

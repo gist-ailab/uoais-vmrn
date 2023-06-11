@@ -1,9 +1,11 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
+import os
 import numpy as np
-from typing import List
-import fvcore.nn.weight_init as weight_init
 import torch
 from torch import nn
+from torchvision import models
+from typing import List
+import fvcore.nn.weight_init as weight_init
 
 from detectron2.config import configurable
 from detectron2.layers import Conv2d, ShapeSpec, get_norm
@@ -19,6 +21,8 @@ The registered object will be called with `obj(cfg, input_shape)`.
 
 
 model_urls = {
+    'resnet18': '{}/.torch/models/resnet18-5c106cde.pth'.format(os.environ['HOME']),
+    'resnet34': '{}/.torch/models/resnet34-333f7ec4.pth'.format(os.environ['HOME']),
     'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
 }
 
@@ -244,6 +248,7 @@ def resnet50_cls(pretrained=False, progress=True, **kwargs):
     return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
 
+
 from torch.nn import init
 def init_weights(net, init_type='normal', init_gain=0.02):
     """Initialize network weights.
@@ -286,14 +291,16 @@ class OrderRecoveryHead(nn.Module):
     """
 
     @configurable
-    def __init__(self, input_shape: ShapeSpec, batch_size):
+    def __init__(self, input_shape: ShapeSpec):
         super(OrderRecoveryHead, self).__init__()
         self.model = resnet50_cls()
+        # self.model = models.resnet18(pretrained=False)
+    # return models.resnet18(pretrained=False)
+    # return models.resnet34(pretrained=False)
         init_weights(self.model, 'xavier')
         self.model.conv1 = nn.Conv2d(5, 64, kernel_size=7, stride=2, padding=3,)
         self.model.fc = nn.Linear(2048, 2)
         # self.model.cuda()
-        self.batch_size = batch_size
         self.input_channels = input_shape.channels
 
     def forward(self, x):
@@ -311,10 +318,8 @@ class OrderRecoveryHead(nn.Module):
         conv_dim = cfg.MODEL.ROI_BOX_HEAD.CONV_DIM
         num_fc = cfg.MODEL.ROI_BOX_HEAD.NUM_FC
         fc_dim = cfg.MODEL.ROI_BOX_HEAD.FC_DIM
-        batch_size = cfg.SOLVER.IMS_PER_BATCH
         return {
             "input_shape": input_shape,
-            "batch_size" : batch_size,
             # "conv_dims": [conv_dim] * num_conv,
             # "fc_dims": [fc_dim] * num_fc,
             # "conv_norm": cfg.MODEL.ROI_BOX_HEAD.NORM,

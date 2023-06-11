@@ -116,7 +116,8 @@ def mask_rcnn_loss(pred_mask_logits: torch.Tensor, instances: List[Instances], t
 
     gt_classes = []
     gt_masks = []
-    gt_masks_per_image_list = []
+    if target == "gt_visible_masks":
+        gt_masks_per_image_list = []
     for instances_per_image in instances:
         if len(instances_per_image) == 0:
             continue
@@ -124,13 +125,13 @@ def mask_rcnn_loss(pred_mask_logits: torch.Tensor, instances: List[Instances], t
             gt_classes_per_image = instances_per_image.gt_classes.to(dtype=torch.int64)
             gt_classes.append(gt_classes_per_image)
 
-        gt_masks_per_image_list.append(instances_per_image.gt_masks.tensor)
+        if target == "gt_visible_masks":
+            gt_masks_per_image_list.append(instances_per_image.gt_masks.tensor)
         gt_masks_per_image = instances_per_image.get(target).crop_and_resize(
             instances_per_image.proposal_boxes.tensor, mask_side_len
         ).to(device=pred_mask_logits.device)
         # A tensor of shape (N, M, M), N=#instances in the image; M=mask_side_len
         gt_masks.append(gt_masks_per_image)
-    # gt_masks_per_image_list = copy.deepcopy(gt_masks)
 
     if len(gt_masks) == 0:
         return pred_mask_logits.sum() * 0
@@ -154,7 +155,11 @@ def mask_rcnn_loss(pred_mask_logits: torch.Tensor, instances: List[Instances], t
     mask_loss = F.binary_cross_entropy_with_logits(pred_mask_logits, gt_masks, reduction="mean")
     if dice_loss:
         mask_loss += compute_dice_loss(pred_mask_logits.sigmoid(), gt_masks)
-    return mask_loss, pred_mask_logits, gt_masks_per_image_list
+    
+    if target == "gt_visible_masks":
+        return mask_loss, pred_mask_logits
+    return mask_loss
+
 
 
 @torch.jit.unused

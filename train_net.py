@@ -141,7 +141,7 @@ class Trainer(DefaultTrainer):
             return LVISEvaluator(dataset_name, cfg, True, output_folder)
         if evaluator_type == "text":
             return TextEvaluator(dataset_name, cfg, True, output_folder)
-        elif evaluator_type in ["amodal"]:
+        elif evaluator_type in ["amodal", "insta"]:
             if "visible" in cfg.TEST.EVAL_TARGET:
                 evaluator_list.append(VisibleEvaluator(dataset_name, output_folder))
             elif "amodal" in cfg.TEST.EVAL_TARGET:

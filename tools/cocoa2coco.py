@@ -108,6 +108,7 @@ class COCOA2COCO():
             
             # objs_num = annot['size']
             objs_num = len(annot['regions'])
+            if objs_num > 20: continue
             if annot['size'] != len(annot['regions']):
                 print('size error', annot['size'], len(annot['regions']))
             if objs_num >= 50:
@@ -209,13 +210,13 @@ if __name__ == '__main__':
     print('train')
     train_converter = COCOA2COCO(train_path)
     train_annot = train_converter.combine_annot()
-    with open('Annotations/cocoa_train.json', 'w') as f:
+    with open('Annotations/cocoa20_train.json', 'w') as f:
         json.dump(train_annot, f)
 
     print('val')
     val_converter = COCOA2COCO(val_path)
     val_annot = val_converter.combine_annot()
-    with open('Annotations/cocoa_val.json', 'w') as f:
+    with open('Annotations/cocoa20_val.json', 'w') as f:
         json.dump(val_annot, f)
 
 
