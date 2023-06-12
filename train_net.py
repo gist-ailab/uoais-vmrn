@@ -296,8 +296,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_file == '':
-        args.config_file = 'configs/cocoa.yaml'
-        args.gpu = '0'
+        args.config_file = 'configs/meta_uoais_insta.yaml'
+        args.gpu = '7'
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)

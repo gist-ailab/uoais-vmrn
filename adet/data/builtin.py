@@ -24,6 +24,40 @@ from .builtin_meta import _get_builtin_metadata
 from .register_uoais import register_uoais_instances
 from .register_wisdom import register_wisdom_instances
 from .register_cocoa import register_cocoa_instances
+from .register_meta import register_meta_instances
+
+
+
+_PREDEFINED_SPLITS_META = {
+    "meta_real_train": ("MetaGraspNet/dataset_real/", "MetaGraspNet/Annotations/meta_real_train.json"),
+    "meta_real_val": ("MetaGraspNet/dataset_real/", "MetaGraspNet/Annotations/meta_real_val.json"),
+
+    "meta_sim_train": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train.json"),
+    "meta_sim_val": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val.json"),
+
+    "meta_sim_train_wo45": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_wo45.json"),
+    "meta_sim_val_wo45": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_wo45.json"),
+
+    "meta_sim_train_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_m2.json"),
+    "meta_sim_val_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m2.json"),
+    
+    "meta_sim_train_debug": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_debug.json"),
+    "meta_sim_val_debug": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_debug.json"),
+}
+
+
+
+def register_all_meta(root="./datasets"):
+    for key, (image_root, json_file) in _PREDEFINED_SPLITS_META.items():
+        # Assume pre-defined datasets live in `./datasets`.
+        register_meta_instances(
+            key,
+            # _get_builtin_metadata("vmrd"),
+            {},
+            os.path.join(root, json_file) if "://" not in json_file else json_file,
+            os.path.join(root, image_root),
+        )
+
 
 
 _PREDEFINED_SPLITS_COCOA = {
@@ -97,3 +131,4 @@ def register_all_wisdom(root="./datasets"):
 register_all_uoais()
 register_all_wisdom()
 register_all_cocoa()
+register_all_meta()
