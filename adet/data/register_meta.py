@@ -16,7 +16,7 @@ def register_meta_instances(name, metadata, json_file, image_root):
     """
     # 1. register a function which returns dicts
     DatasetCatalog.register(name, lambda: load_meta_json(json_file, image_root))
-    evaluator_type = "coco"
+    evaluator_type = "amodal"
 
     # 2. Optionally, add metadata about this dataset,
     # since they might be useful in evaluation, visualization or logging

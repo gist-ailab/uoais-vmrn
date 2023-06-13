@@ -23,25 +23,6 @@ MODEL:
     PRE_NMS_TOPK_TEST: 1000  # Per FPN level
     POST_NMS_TOPK_TRAIN: 1000
     POST_NMS_TOPK_TEST: 1000
-  ROI_HEADS:
-    NAME: "ORCNNROIHeads"
-    IN_FEATURES: ["p2", "p3", "p4", "p5"]
-    NUM_CLASSES: 98
-  ROI_BOX_HEAD:
-    NAME: "MLCFastRCNNConvFCHead"
-    NUM_FC: 0
-    NUM_CONV: 4
-    POOLER_RESOLUTION: 7
-    CLS_AGNOSTIC_BBOX_REG: True
-  ROI_MASK_HEAD:
-    NAME: "AmodalMaskRCNNConvUpsampleHead"
-    NUM_CONV: 4
-    POOLER_RESOLUTION: 14
-  ROI_VISIBLE_MASK_HEAD:
-    NAME: "VisibleMaskRCNNConvUpsampleHead"
-    NUM_CONV: 4
-    POOLER_RESOLUTION: 14
-  ORDER_RECOVERY_ON: True
   ROI_ORDER_HEAD:
     NAME: "OrderRecoveryHead"
   #   NUM_FC: 2

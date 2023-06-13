@@ -430,8 +430,26 @@ class ORCNNROIHeads(ROIHeads):
             # applied to the top scoring box detections.
             features_list = [features[f] for f in self.in_features]
             pred_instances, box_head_features = self._forward_box(features_list, proposals)
-            pred_instances = self._forward_masks(features, pred_instances, box_head_features)
+            # if self.order_recovery:
+            #     pred_instances, pred_mask_logits, pred_gt_boxes = self._forward_masks(features, proposals, box_head_features)
+            #     confusion_matrix = self._forward_orders(images, pred_mask_logits, pred_gt_boxes, targets, gt_rel_mat)
+            # else:
+            #    pred_instances = self._forward_masks(features, pred_instances, box_head_features)
+            if self.order_recovery:
+                pred_instances, pred_mask_logits, _ = self._forward_masks(features, pred_instances, box_head_features)
+                confusion_matrix = self._inference_order(images, pred_instances, targets, gt_rel_mat)
+            else:
+                pred_instances = self._forward_masks(features, pred_instances, box_head_features)
             return pred_instances, {}
+            return pred_instances, confusion_matrix
+        
+    def _inference_order(self, images, pred_instances, targets, gt_rel_mat):
+        pred_boxes = pred_instances[0].pred_boxes.tensor            # 4, 4
+        pred_masks = pred_instances[0].pred_visible_masks           # 4,1,28,28
+        gt_masks = targets[0].gt_visible_masks.tensor               # 3,800,800
+
+
+
         
     def _forward_orders(self, images: ImageList, pred_mask_logits: torch.Tensor, pred_gt_boxes: torch.Tensor, \
                         targets:List[Instances], gt_rel_mat: List[List]) -> torch.Tensor:
@@ -446,101 +464,121 @@ class ORCNNROIHeads(ROIHeads):
         Returns:
             Order Recovery Loss
         """
-        mask_idx = 0
-        loss = 0.
-        ## pred-gt matching
-        ## mean of pred masks
-        for B, image in enumerate(images):
-            target = targets[B]
-            pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
+        if self.training:
+            mask_idx = 0
+            loss = 0.
+            ## pred-gt matching
+            ## mean of pred masks
+            for B, image in enumerate(images):
+                target = targets[B]
+                pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
 
-            pred_boxes_per_image = pred_gt_boxes[B]['pred']
-            gt_boxes_per_image = pred_gt_boxes[B]['gt']
+                pred_boxes_per_image = pred_gt_boxes[B]['pred']
+                gt_boxes_per_image = pred_gt_boxes[B]['gt']
 
-            target_gt_boxes = target.gt_boxes.tensor
-            pred_indexes = [[] for _ in range(len(target_gt_boxes))]
-            for i, gt_box in enumerate(gt_boxes_per_image):
-                for j, target_gt in enumerate(target_gt_boxes):
-                    if torch.all(torch.eq(gt_box, target_gt)):
-                        pred_indexes[j].append(i)
-                        break
-                else:
-                    print('no gt box matched')
+                target_gt_boxes = target.gt_boxes.tensor
+                pred_indexes = [[] for _ in range(len(target_gt_boxes))]
+                for i, gt_box in enumerate(gt_boxes_per_image):
+                    for j, target_gt in enumerate(target_gt_boxes):
+                        if torch.all(torch.eq(gt_box, target_gt)):
+                            pred_indexes[j].append(i)
+                            break
+                    else:
+                        print('no gt box matched')
 
-            pred_masks_per_gt = []
-            for i, indexes in enumerate(pred_indexes):
-                if len(indexes) == 0:
-                    pred_masks_per_gt.append(None)
-                    continue
-                # pred_masks_per_gt.append(pred_logits_per_image[indexes].mean(dim=0))
-                pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
-                pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
-            
-            inputs1, inputs2, gt_order1, gt_order2 = [], [], [], []
-            for i, pred_mask_i in enumerate(pred_masks_per_gt):
-                for j, pred_mask_j in enumerate(pred_masks_per_gt):
-                    if i == j: continue
-                    if pred_mask_i is None or pred_mask_j is None: continue
+                pred_masks_per_gt = []
+                for i, indexes in enumerate(pred_indexes):
+                    if len(indexes) == 0:
+                        pred_masks_per_gt.append(None)
+                        continue
 
-                    img, mask_i, mask_j = self._preprocess_order(image, pred_mask_i.unsqueeze(0), pred_mask_j.unsqueeze(0))
-                    inputs1.append(torch.cat([mask_i, mask_j, img], dim=0).unsqueeze(0))
-                    inputs2.append(torch.cat([mask_j, mask_i, img], dim=0).unsqueeze(0))
+                    ## mean of image sized pred masks
+                    # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
+                    # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
 
-
-                    if gt_rel_mat[B][i][j] == -1:       ## i is occluded by j
-                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
-                        gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> yes -> 1
-                    elif gt_rel_mat[B][j][i] == -1:     ## j is occluded by i
-                        gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> yes -> 1
-                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
-                    elif gt_rel_mat[B][i][j] == 0:      ## none
-                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
-                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+                    pred_logits_per_gt = pred_logits_per_image[indexes]
+                    pred_boxes_per_gt = pred_boxes_per_image[indexes]
+                    ## paste pred logit masks to image
+                    paste_mask_per_gt = paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]).sum(dim=0)
+                    paste_mask_per_gt = (paste_mask_per_gt > len(indexes)/2)
                     
-                    if len(gt_order1) >= 30:
-                        gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
-                        gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
-                        output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-                        output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+                    # pred_masks_per_gt.append(paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]))
+                    pred_masks_per_gt.append(paste_mask_per_gt)
 
-                        # # ## weighted loss
-                        # mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
-                        # for k in range(gt_order1.shape[0]):
-                        #     if gt_order1[k, 1] > 0:
-                        #         mask1[k] = 9
-                        #     if gt_order2[k, 1] > 0:
-                        #         mask2[k] = 9
-                        # loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1) + mask2 * self.order_criterion(output2, gt_order2))
-                        
-                        # ## unweighted loss
-                        loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
-            
-                        inputs1, gt_order1 = [], []
-                        inputs2, gt_order2 = [], []
-
-            if len(gt_order1):
-                gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
-                gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
-                output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-                output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
-
-                # # ## weighted loss
-                # mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
-                # for k in range(gt_order1.shape[0]):
-                #     if gt_order1[k, 1] > 0:
-                #         mask1[k] = 9
-                #     if gt_order2[k, 1] > 0:
-                #         mask2[k] = 9
-                # loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1) + mask2 * self.order_criterion(output2, gt_order2))
+                    # paste_masks_in_image()
                 
-                # ## unweighted loss
-                loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+                inputs1, inputs2, gt_order1, gt_order2 = [], [], [], []
+                for i, pred_mask_i in enumerate(pred_masks_per_gt):
+                    for j, pred_mask_j in enumerate(pred_masks_per_gt):
+                        if i == j: continue
+                        if pred_mask_i is None or pred_mask_j is None: continue
 
-        del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
-            pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
+                        img, mask_i, mask_j = self._preprocess_order(image, pred_mask_i.unsqueeze(0), pred_mask_j.unsqueeze(0))
+                        inputs1.append(torch.cat([mask_i, mask_j, img], dim=0).unsqueeze(0))
+                        inputs2.append(torch.cat([mask_j, mask_i, img], dim=0).unsqueeze(0))
 
 
-        return loss
+                        if gt_rel_mat[B][i][j] == -1:       ## i is occluded by j
+                            gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
+                            gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> yes -> 1
+                        elif gt_rel_mat[B][j][i] == -1:     ## j is occluded by i
+                            gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> yes -> 1
+                            gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+                        elif gt_rel_mat[B][i][j] == 0:      ## none
+                            gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
+                            gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+                        
+                        if len(gt_order1) >= 30:
+                            gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+                            gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+                            output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                            output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+
+                            # ## weighted loss
+                            mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
+                            for k in range(gt_order1.shape[0]):
+                                if gt_order1[k, 1] > 0:
+                                    mask1[k] = 5
+                                if gt_order2[k, 1] > 0:
+                                    mask2[k] = 5
+                            loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1) + mask2 * self.order_criterion(output2, gt_order2))
+                            
+                            # # ## unweighted loss
+                            # loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+                
+                            inputs1, gt_order1 = [], []
+                            inputs2, gt_order2 = [], []
+
+                if len(gt_order1):
+                    gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+                    gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+                    output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                    output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+
+                    # ## weighted loss
+                    mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
+                    for k in range(gt_order1.shape[0]):
+                        if gt_order1[k, 1] > 0:
+                            mask1[k] = 5
+                        if gt_order2[k, 1] > 0:
+                            mask2[k] = 5
+                    loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1) + mask2 * self.order_criterion(output2, gt_order2))
+                    
+                    # # ## unweighted loss
+                    # loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+
+            del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
+                pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
+
+
+            return loss
+        ## inference
+        else:
+            total = 0
+            OO, OX = 0, 0
+            XO, XX = 0, 0
+            confusion_matrix = np.array[[OO, OX], [XO, XX]]
+            return confusion_matrix
 
     def _preprocess_order(self, image, mask_i, mask_j):
         import torchvision.transforms as T
@@ -774,4 +812,7 @@ class ORCNNROIHeads(ROIHeads):
                 occ_mask_logits = logits["amodal"] - F.relu(logits["visible"])
                 occlusion_mask_rcnn_inference(occ_mask_logits, instances)
 
+            if self.order_recovery:
+                return instances, logits['visible'], {}
+                return instances, pred_mask_logits, pred_gt_boxes
             return instances

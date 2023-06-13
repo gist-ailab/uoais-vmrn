@@ -33,7 +33,7 @@ from detectron2.data import MetadataCatalog, build_detection_train_loader, build
 from detectron2.modeling import GeneralizedRCNNWithTTA
 from detectron2.utils.logger import setup_logger
 
-from adet.evaluation import AmodalVisibleEvaluator, VisibleEvaluator, AmodalEvaluator, TextEvaluator
+from adet.evaluation import AmodalVisibleEvaluator, VisibleEvaluator, AmodalEvaluator, TextEvaluator, OrderEvaluator
 from adet.config import get_cfg
 from adet.data.dataset_mapper import DatasetMapperWithBasis
 from adet.checkpoint import AdetCheckpointer
@@ -148,6 +148,8 @@ class Trainer(DefaultTrainer):
                 evaluator_list.append(AmodalEvaluator(dataset_name, output_folder))
             elif "amodal_visible" in cfg.TEST.EVAL_TARGET:
                 evaluator_list.append(AmodalVisibleEvaluator(dataset_name, cfg, output_dir=output_folder))
+        elif evaluator_type == "order":
+            evaluator_list.append(OrderEvaluator(dataset_name, cfg, output_dir=output_folder))
         if len(evaluator_list) == 0:
             raise NotImplementedError(
                 "no Evaluator for the dataset {} with the type {}".format(
@@ -156,6 +158,7 @@ class Trainer(DefaultTrainer):
             )
         if len(evaluator_list) == 1:
             return evaluator_list[0]
+        print('** evaluator_list', evaluator_list)
         return DatasetEvaluators(evaluator_list)
 
     @classmethod
@@ -249,6 +252,7 @@ def setup(args):
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
+    cfg.MODEL.WEIGHTS = 'output/MUI16/model_0049999.pth'
     cfg.freeze()
     default_setup(cfg, args)
 
@@ -260,10 +264,6 @@ def setup(args):
 
 def main(args):
     cfg = setup(args)
-    if args.config_file == '':
-        args.gpu = str(0)
-        args.config_file = 'configs/R50_rgbdconcat_mlc_occatmask_hom_concat.yaml'
-        # args.config_file = 'configs/meta.yaml'
 
     if args.eval_only:
         model = Trainer.build_model(cfg)
@@ -296,8 +296,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_file == '':
-        args.config_file = 'configs/meta_uoais_insta.yaml'
-        args.gpu = '7'
+        args.gpu = '2'
+        args.eval_only = True
+        args.config_file = 'output/MUI16/config.yaml'
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)
