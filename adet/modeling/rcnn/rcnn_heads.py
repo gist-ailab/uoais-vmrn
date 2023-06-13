@@ -444,9 +444,27 @@ class ORCNNROIHeads(ROIHeads):
             return pred_instances, confusion_matrix
         
     def _inference_order(self, images, pred_instances, targets, gt_rel_mat):
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+        image = images[0]
+        draw_image = image.permute(1,2,0).cpu().numpy()
         pred_boxes = pred_instances[0].pred_boxes.tensor            # 4, 4
+        gt_boxes = targets[0].gt_boxes.tensor                       # 3, 4
         pred_masks = pred_instances[0].pred_visible_masks           # 4,1,28,28
         gt_masks = targets[0].gt_visible_masks.tensor               # 3,800,800
+
+        # gt_rel_mat
+        # 0 0 0
+        # 0 0 -1
+        # 0 0 0
+
+        # targets[0].gt_boxes
+
+        ## pred-gt matching
+        
+
+
+
 
 
 

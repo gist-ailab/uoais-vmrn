@@ -129,6 +129,6 @@ class InstaRCNN(GeneralizedRCNN):
 
         if do_postprocess:
             assert not torch.jit.is_scripting(), "Scripting is not supported for postprocess."
-            return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes)
             return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes), confusion_matrix
+            return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes)
         return results

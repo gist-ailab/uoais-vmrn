@@ -296,7 +296,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_file == '':
-        args.gpu = '2'
+        args.gpu = '1'
         args.eval_only = True
         args.config_file = 'output/MUI16/config.yaml'
 
