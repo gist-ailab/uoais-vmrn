@@ -89,8 +89,7 @@ class OrderEvaluator(DatasetEvaluator):
         self._amodal_predictions = []
         self._visible_predictions = []
         self._occlusion_predictions = []
-        self._pred_masks = []
-        self._gt_masks = []
+        self._order_predictions = []
 
         self._amodal_results = []
         self._visible_results = []
@@ -120,7 +119,7 @@ class OrderEvaluator(DatasetEvaluator):
                 "instances" that contains :class:`Instances`.
         """
         for i in range(len(inputs)):
-            input, output, confusion_matrix = inputs[i], outputs[2*i][0], outputs[2*i+1]
+            input, output, pred_rel_mat = inputs[i], outputs[2*i][0], outputs[2*i+1]
             amodal_prediction = {"image_id": input["image_id"]}
             visible_prediction = {"image_id": input["image_id"]}
             occlusion_prediction = {"image_id": input["image_id"]}
@@ -135,32 +134,14 @@ class OrderEvaluator(DatasetEvaluator):
                 amodal_prediction["proposals"] = output["proposals"].to(self._cpu_device)
                 visible_prediction["proposals"] = output["proposals"].to(self._cpu_device)
                 occlusion_prediction["proposals"] = output["proposals"].to(self._cpu_device)
+            
+            order_prediction['pred_rel_mat'] = pred_rel_mat
+            order_prediction['gt_rel_mat'] = np.array(input['rel_mat'])
 
             self._amodal_predictions.append(amodal_prediction)
             self._visible_predictions.append(visible_prediction)
             self._occlusion_predictions.append(occlusion_prediction)
-            self._pred_masks.append(visible_prediction)
-            self._gt_masks.append(input['instances'])
-
-        # for input, output_ in zip(inputs, outputs):
-        #     output, confusion_matrix = output_[0], output_[1]
-        #     amodal_prediction = {"image_id": input["image_id"]}
-        #     visible_prediction = {"image_id": input["image_id"]}
-        #     occlusion_prediction = {"image_id": input["image_id"]}
-
-        #     if "instances" in output:
-        #         instances = detector_postprocess(output["instances"], input["height"], input["width"])
-        #         amodal_prediction["instances"], visible_prediction["instances"], occlusion_prediction["instances"] =\
-        #             amodal_instances_to_coco_json(instances, input["image_id"], type="amodal")
-
-        #     if "proposals" in output:
-        #         amodal_prediction["proposals"] = output["proposals"].to(self._cpu_device)
-        #         visible_prediction["proposals"] = output["proposals"].to(self._cpu_device)
-        #         occlusion_prediction["proposals"] = output["proposals"].to(self._cpu_device)
-
-        #     self._amodal_predictions.append(amodal_prediction)
-        #     self._visible_predictions.append(visible_prediction)
-        #     self._occlusion_predictions.append(occlusion_prediction)
+            self._order_predictions.append(order_prediction)
 
 
     def evaluate(self):
@@ -175,11 +156,8 @@ class OrderEvaluator(DatasetEvaluator):
             self._occlusion_predictions = comm.gather(self._occlusion_predictions, dst=0)
             self._occlusion_predictions = list(itertools.chain(*self._occlusion_predictions))
             
-            self._pred_masks = comm.gather(self._pred_masks, dst=0)
-            self._pred_masks = list(itertools.chain(*self._pred_masks))
-
-            self._gt_masks = comm.gather(self._gt_masks, dst=0)
-            self._gt_masks = list(itertools.chain(*self._gt_masks))
+            self._order_predictions = comm.gather(self._order_predictions, dst=0)
+            self._order_predictions = list(itertools.chain(*self._order_predictions))
 
             if not comm.is_main_process():
                 return {}
@@ -210,10 +188,79 @@ class OrderEvaluator(DatasetEvaluator):
         return copy.deepcopy(self._results)
     
     def _eval_order_predictions(self):
-        self._gt_masks = list(itertools.chain(*[x["instances"] for x in self._gt_masks]))
-        self._pred_masks = list(itertools.chain(*[x["instances"] for x in self._pred_masks]))
         
-        # for i, (gt_mask, pred_mask) in zip (self._gt_masks, self._pred_masks):
+        ## evaluate GT vs pred relationship matrix
+        total_conf = np.array([[0,0,0],[0,0,0],[0,0,0]])
+        for i, prediction in enumerate(self._order_predictions):
+            print(prediction['pred_rel_mat'], prediction['gt_rel_mat'])
+            pred = prediction['pred_rel_mat']
+            gt = prediction['gt_rel_mat']
+
+            if len(pred) != len(gt):
+                print(f'Error: {len(pred)} != {len(gt)}')
+                continue
+
+            PP, PC, PN = 0, 0, 0
+            CP, CC, CN = 0, 0, 0
+            NP, NC, NN = 0, 0, 0
+
+            for i in range(len(gt)):
+                for j in range(len(gt)):
+                    if gt[j][i] == -1:          ## i is child of j
+                        if pred[j][i] == -1:        ## i is predicted as child of j
+                            CC += 1
+                        elif pred[i][j] == -1:      ## i is predicted as parent of j
+                            CP += 1
+                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
+                            CN += 1
+                    elif gt[i][j] == -1:        ## i is parent of j
+                        if pred[j][i] == -1:        ## i is predicted as child of j
+                            PC += 1
+                        elif pred[i][j] == -1:      ## i is predicted as parent of j
+                            PP += 1
+                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
+                            PN += 1
+                    elif gt[i][j] == 0:         ## i is no relation with j
+                        if pred[j][i] == -1:        ## i is predicted as child of j
+                            NC += 1
+                        elif pred[i][j] == -1:      ## i is predicted as parent of j
+                            NP += 1
+                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
+                            NN += 1
+            conf = np.array([[PP, PC, PN],[CP, CC, CN],[NP, NC, NN]])
+            total_conf += conf
+            print(conf)
+        
+        print('-----------------')
+        print(total_conf)
+        PP, PC, PN = total_conf[0][0], total_conf[0][1], total_conf[0][2]
+        CP, CC, CN = total_conf[1][0], total_conf[1][1], total_conf[1][2]
+        NP, NC, NN = total_conf[2][0], total_conf[2][1], total_conf[2][2]
+
+
+        parent_precision = PP / (PP + CP + NP) if (PP + CP + NP) else 0
+        parent_recall = PP / (PP + PC + PN) if (PP + PC + PN) else 0
+        child_precision = CC / (PC + CC + NC) if (PC + CC + NC) else 0
+        child_recall = CC / (CP + CC + CN) if (CP + CC + CN) else 0
+        none_precision = NN / (PN + CN + NN) if (PN + CN + NN) else 0
+        none_recall = NN / (NP + NC + NN) if (NP + NC + NN) else 0
+        print('[total] acc', (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN), \
+            '\n[Parent] precision', parent_precision, '\trecall', parent_recall, \
+            '\n[Child] precision', child_precision, '\trecall', child_recall, \
+            '\n[None] precision', none_precision, '\trecall', none_recall) 
+        
+        ## return res
+        res = {
+            'accuracy': (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN),
+            'parent_precision': parent_precision, 
+            'parent_recall': parent_recall,
+            'child_precision': child_precision,
+            'child_recall': child_recall,
+            'none_precision': none_precision,
+            'none_recall': none_recall,
+        }
+
+        self._results["order_recovery"] = res
 
 
 

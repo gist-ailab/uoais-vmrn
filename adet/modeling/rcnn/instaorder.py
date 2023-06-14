@@ -122,13 +122,13 @@ class InstaRCNN(GeneralizedRCNN):
                 assert "proposals" in batched_inputs[0]
                 proposals = [x["proposals"].to(self.device) for x in batched_inputs]
 
-            results, confusion_matrix = self.roi_heads(images, features, proposals, gt_instances, gt_rel_mat)
+            results, pred_rel_mat = self.roi_heads(images, features, proposals, gt_instances, gt_rel_mat)
         else:
             detected_instances = [x.to(self.device) for x in detected_instances]
             results = self.roi_heads.forward_with_given_boxes(features, detected_instances)
 
         if do_postprocess:
             assert not torch.jit.is_scripting(), "Scripting is not supported for postprocess."
-            return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes), confusion_matrix
+            return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes), pred_rel_mat
             return GeneralizedRCNN._postprocess(results, batched_inputs, images.image_sizes)
         return results
