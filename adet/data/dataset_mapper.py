@@ -96,9 +96,9 @@ class DatasetMapperWithBasis(DatasetMapper):
                 ]
             else:
                 self.augmentation_lists = [
-                    T.RandomApply(T.RandomCrop("relative_range", (cr, cr))),
+                    # T.RandomApply(T.RandomCrop("relative_range", (cr, cr))),
                     ColorAugSSDTransform(img_format=cfg.INPUT.FORMAT),
-                    T.RandomFlip(0.5),
+                    # T.RandomFlip(0.5),
                     Resize((self.img_size[1], self.img_size[0]))
                     ]
         elif not self.color_aug and is_train:
