@@ -39,9 +39,12 @@ _PREDEFINED_SPLITS_META = {
     "meta_sim_val_wo45": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_wo45.json"),
 
     "meta_sim_train_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_m2.json"),
-    # "meta_sim_train_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m2_10.json"),
     "meta_sim_val_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m2.json"),
+    # "meta_sim_train_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m2_10.json"),
     # "meta_sim_val_m2": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m2_10.json"),
+
+    "meta_sim_train_m4": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_m4.json"),
+    "meta_sim_val_m4": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_m4.json"),
     
     "meta_sim_train_debug": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_train_debug.json"),
     "meta_sim_val_debug": ("MetaGraspNet/dataset_sim/", "MetaGraspNet/Annotations/meta_sim_val_debug.json"),

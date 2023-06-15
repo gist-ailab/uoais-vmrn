@@ -1,6 +1,7 @@
 ## original image
 """
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import cv2
 
 im = batched_inputs[0]['image'].permute(1,2,0).cpu().numpy()
@@ -16,14 +17,28 @@ img_idx = 'train3'
 ## image
 """
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 plt.axis('off')
 plt.imshow(img.permute(1,2,0).cpu()); plt.savefig(f'vis/graduation/{img_idx}_mask_img.png', bbox_inches='tight',transparent=True, pad_inches=0);
 plt.imshow(mask_i[0].cpu()); plt.savefig(f'vis/graduation/{img_idx}_mask_i.png', bbox_inches='tight',transparent=True, pad_inches=0);
 plt.imshow(mask_j[0].cpu()); plt.savefig(f'vis/graduation/{img_idx}_mask_j.png', bbox_inches='tight',transparent=True, pad_inches=0);
 
+plt.imshow(img.permute(1,2,0).cpu()); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_mask_img.png', bbox_inches='tight',transparent=True, pad_inches=0);
+plt.imshow(mask_i[0].cpu()); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_mask_i.png', bbox_inches='tight',transparent=True, pad_inches=0);
+plt.imshow(mask_j[0].cpu()); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_mask_j.png', bbox_inches='tight',transparent=True, pad_inches=0);
+
+
+
 f = open(f'vis/graduation/{img_idx}_rel_mat.txt', 'w')
 f.write(f'gt_rel_mat\n{gt_rel_mat[B]}')
 f.close()
+
+
+f = open(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_rel_mat.txt', 'w')
+f.write(f'gt_rel_mat\n{gt_rel_mat[B]}')
+f.close()
+
+
 ----
 
 import matplotlib.pyplot as plt

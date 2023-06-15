@@ -528,44 +528,44 @@ class ORCNNROIHeads(ROIHeads):
         ## pred-gt matching
         ## mean of pred masks
         for B, image in enumerate(images):
-            target = targets[B]
-            pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
+            # target = targets[B]
+            # pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
 
-            pred_boxes_per_image = pred_gt_boxes[B]['pred']
-            gt_boxes_per_image = pred_gt_boxes[B]['gt']
+            # pred_boxes_per_image = pred_gt_boxes[B]['pred']
+            # gt_boxes_per_image = pred_gt_boxes[B]['gt']
 
-            target_gt_boxes = target.gt_boxes.tensor
-            pred_indexes = [[] for _ in range(len(target_gt_boxes))]
-            for i, gt_box in enumerate(gt_boxes_per_image):
-                for j, target_gt in enumerate(target_gt_boxes):
-                    if torch.all(torch.eq(gt_box, target_gt)):
-                        pred_indexes[j].append(i)
-                        break
-                else:
-                    print('no gt box matched')
+            # target_gt_boxes = target.gt_boxes.tensor
+            # pred_indexes = [[] for _ in range(len(target_gt_boxes))]
+            # for i, gt_box in enumerate(gt_boxes_per_image):
+            #     for j, target_gt in enumerate(target_gt_boxes):
+            #         if torch.all(torch.eq(gt_box, target_gt)):
+            #             pred_indexes[j].append(i)
+            #             break
+            #     else:
+            #         print('no gt box matched')
 
-            pred_masks_per_gt = []
-            for i, indexes in enumerate(pred_indexes):
-                if len(indexes) == 0:
-                    pred_masks_per_gt.append(None)
-                    continue
+            # pred_masks_per_gt = []
+            # for i, indexes in enumerate(pred_indexes):
+            #     if len(indexes) == 0:
+            #         pred_masks_per_gt.append(None)
+            #         continue
 
-                ## mean of image sized pred masks
-                # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
-                # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
+            #     ## mean of image sized pred masks
+            #     # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
+            #     # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
 
-                pred_logits_per_gt = pred_logits_per_image[indexes]
-                pred_boxes_per_gt = pred_boxes_per_image[indexes]
-                ## paste pred logit masks to image
-                paste_mask_per_gt = paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]).sum(dim=0)
-                # so = nn.Sigmoid(dim=None)
-                # paste_mask_per_gt = so((paste_mask_per_gt-0.5)*1000)
-                paste_mask_per_gt = (paste_mask_per_gt >= len(indexes)/2)
+            #     pred_logits_per_gt = pred_logits_per_image[indexes]
+            #     pred_boxes_per_gt = pred_boxes_per_image[indexes]
+            #     ## paste pred logit masks to image
+            #     paste_mask_per_gt = paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]).sum(dim=0)
+            #     # so = nn.Sigmoid(dim=None)
+            #     # paste_mask_per_gt = so((paste_mask_per_gt-0.5)*1000)
+            #     paste_mask_per_gt = (paste_mask_per_gt >= len(indexes)/2)
                 
-                # pred_masks_per_gt.append(paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]))
-                pred_masks_per_gt.append(paste_mask_per_gt)
+            #     # pred_masks_per_gt.append(paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]))
+            #     pred_masks_per_gt.append(paste_mask_per_gt)
 
-                # paste_masks_in_image()
+            #     # paste_masks_in_image()
             
             inputs1, inputs2, gt_order1, gt_order2 = [], [], [], []
             # for i, pred_mask_i in enumerate(pred_masks_per_gt):
@@ -579,25 +579,25 @@ class ORCNNROIHeads(ROIHeads):
                     inputs1.append(torch.cat([mask_i, mask_j, img], dim=0).unsqueeze(0))
                     inputs2.append(torch.cat([mask_j, mask_i, img], dim=0).unsqueeze(0))
 
+                    if gt_rel_mat[B][i][j] == -1:       ## i is occluded by j   ==   j occludes i
+                        gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> no -> 0      /       does j occlues i? -> yes -> 1
+                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> yes -> 1     /       does i occlues j? -> no -> 0
 
-                    if gt_rel_mat[B][i][j] == -1:       ## i is occluded by j
-                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
-                        gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> yes -> 1
-                    elif gt_rel_mat[B][j][i] == -1:     ## j is occluded by i
-                        gt_order1.append(torch.FloatTensor([[0., 1.]]))    ## does i occlude j? -> yes -> 1
-                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+                    elif gt_rel_mat[B][j][i] == -1:     ## j is occluded by i   ==   i occludes j
+                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> yes -> 1     /       does j occlues i? -> no -> 0
+                        gt_order2.append(torch.FloatTensor([[0., 1.]]))    ## does j occlude i? -> no -> 0      /       does i occlues j? -> yes -> 1
                     elif gt_rel_mat[B][i][j] == 0:      ## none
-                        gt_order1.append(torch.FloatTensor([[1., 0.]]))    ## does i occlude j? -> no -> 0
-                        gt_order2.append(torch.FloatTensor([[1., 0.]]))    ## does j occlude i? -> no -> 0
+                        gt_order1.append(torch.FloatTensor([[0., 0.]]))    ## does i occlude j? -> no -> 0      /       does j occlues i? -> no -> 0
+                        gt_order2.append(torch.FloatTensor([[0., 0.]]))    ## does j occlude i? -> no -> 0      /       does i occlues j? -> no -> 0
                     
                     if len(gt_order1) >= 30:
                         gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
                         gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
-                        # output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-                        # output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
-                        so = nn.Softmax(dim=-1)
-                        output1 = so(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-                        output2 = so(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+                        output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                        output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+                        # so = nn.Softmax(dim=-1)
+                        # output1 = so(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+                        # output2 = so(self.order_recovery_head(torch.cat(inputs2, dim=0)))
 
                         # # ## weighted loss
                         # mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
@@ -610,8 +610,8 @@ class ORCNNROIHeads(ROIHeads):
                         #                    mask2 * self.order_criterion(output2, gt_order2).mean())
                         
                         # ## unweighted loss
-                        loss += (self.order_criterion(output1, gt_order1).mean() + self.order_criterion(output2, gt_order2).mean())
-            
+                        loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+
                         inputs1, gt_order1 = [], []
                         inputs2, gt_order2 = [], []
 
@@ -635,9 +635,9 @@ class ORCNNROIHeads(ROIHeads):
                 # ## unweighted loss
                 loss += (self.order_criterion(output1, gt_order1).mean() + self.order_criterion(output2, gt_order2).mean())
 
-        del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
-            pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
-        # del gt_order1, gt_order2
+        # del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
+        #     pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
+        del gt_order1, gt_order2
 
         return loss
 

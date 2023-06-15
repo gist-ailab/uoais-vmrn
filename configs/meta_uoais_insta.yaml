@@ -1,7 +1,7 @@
 MODEL:
   META_ARCHITECTURE: "InstaRCNN"
-  WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
-  # WEIGHTS: "output/U03/model_final.pth"
+  # WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
+  WEIGHTS: "output/U03/model_final.pth"
   BACKBONE:
     NAME: "build_resnet_fpn_backbone"
   RESNETS:
@@ -67,8 +67,8 @@ SOLVER:
   CLIP_GRADIENTS:
     ENABLED: True
 DATASETS:
-  TRAIN: ("meta_sim_train_m2",)
-  TEST: ("meta_sim_val_m2",)
+  TRAIN: ("meta_sim_train_m4",)
+  TEST: ("meta_sim_val_m4",)
     
 TEST:
   EVAL_PERIOD: 90000 # no evaluation if 0
@@ -84,4 +84,4 @@ INPUT:
   DEPTH: False
 
 OUTPUT_DIR: "output/d/"
-# OUTPUT_DIR: "output/MUI20/"
+# OUTPUT_DIR: "output/MUI22/"
