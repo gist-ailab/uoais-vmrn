@@ -1,7 +1,7 @@
 MODEL:
   META_ARCHITECTURE: "InstaRCNN"
-  # WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
-  WEIGHTS: "output/U03/model_final.pth"
+  WEIGHTS: "detectron2://ImageNetPretrained/MSRA/R-50.pkl"
+  # WEIGHTS: "output/U03/model_final.pth"
   BACKBONE:
     NAME: "build_resnet_fpn_backbone"
   RESNETS:
@@ -84,4 +84,4 @@ INPUT:
   DEPTH: False
 
 OUTPUT_DIR: "output/d/"
-# OUTPUT_DIR: "output/MUI22/"
+# OUTPUT_DIR: "output/MUI23/"
