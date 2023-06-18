@@ -25,6 +25,25 @@ from .register_uoais import register_uoais_instances
 from .register_wisdom import register_wisdom_instances
 from .register_cocoa import register_cocoa_instances
 from .register_meta import register_meta_instances
+from .register_instaorder import register_instaorder_instances
+
+
+
+
+_PREDEFINED_SPLITS_INSTAORDER = {
+    "insta_train": ("COCO/train2017/", "COCO/annotations/instances_train2017.json"),
+    "insta_val": ("COCO/val2017/", "COCO/annotations/instances_val2017.json"),
+
+}
+
+def register_all_instaorder(root='./datasets'):
+    for key, (image_root, json_file) in _PREDEFINED_SPLITS_INSTAORDER.items():
+        register_instaorder_instances(
+            key,
+            {},
+            os.path.join(root, json_file) if "://" not in json_file else json_file,
+            os.path.join(root, image_root),
+        )
 
 
 
