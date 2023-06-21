@@ -78,7 +78,7 @@ class InstaRCNN(GeneralizedRCNN):
 
         losses = {}
         losses.update(detector_losses)
-        # losses.update(proposal_losses)
+        losses.update(proposal_losses)
         return losses
     
 
