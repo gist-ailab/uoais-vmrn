@@ -527,50 +527,47 @@ class ORCNNROIHeads(ROIHeads):
         # ## pred-gt matching
         # ## mean of pred masks
         for B, image in enumerate(images):
-            # target = targets[B]
-            # pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
+            target = targets[B]
+            pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
 
-            # pred_boxes_per_image = pred_gt_boxes[B]['pred']
-            # gt_boxes_per_image = pred_gt_boxes[B]['gt']
+            pred_boxes_per_image = pred_gt_boxes[B]['pred']
+            gt_boxes_per_image = pred_gt_boxes[B]['gt']
 
-            # target_gt_boxes = target.gt_boxes.tensor
-            # pred_indexes = [[] for _ in range(len(target_gt_boxes))]
-            # for i, gt_box in enumerate(gt_boxes_per_image):
-            #     for j, target_gt in enumerate(target_gt_boxes):
-            #         if torch.all(torch.eq(gt_box, target_gt)):
-            #             pred_indexes[j].append(i)
-            #             break
-            #     else:
-            #         print('no gt box matched')
+            target_gt_boxes = target.gt_boxes.tensor
+            pred_indexes = [[] for _ in range(len(target_gt_boxes))]
+            for i, gt_box in enumerate(gt_boxes_per_image):
+                for j, target_gt in enumerate(target_gt_boxes):
+                    if torch.all(torch.eq(gt_box, target_gt)):
+                        pred_indexes[j].append(i)
+                        break
+                else:
+                    print('no gt box matched')
 
-            # pred_masks_per_gt = []
-            # for i, indexes in enumerate(pred_indexes):
-            #     if len(indexes) == 0:
-            #         pred_masks_per_gt.append(None)
-            #         continue
+            pred_masks_per_gt = []
+            for i, indexes in enumerate(pred_indexes):
+                if len(indexes) == 0:
+                    pred_masks_per_gt.append(None)
+                    continue
 
-            #     ## mean of image sized pred masks
-            #     # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
-            #     # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
+                ## mean of image sized pred masks
+                # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
+                # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
+                pred_logits_per_gt = pred_logits_per_image[indexes]
+                pred_boxes_per_gt = pred_boxes_per_image[indexes]
 
-            #     pred_logits_per_gt = pred_logits_per_image[indexes]
-            #     pred_boxes_per_gt = pred_boxes_per_image[indexes]
-            #     ## paste pred logit masks to image
-            #     paste_mask_per_gt = paste_masks_in_image(torch.sigmoid(pred_logits_per_gt), pred_boxes_per_gt, image.shape[-2:], threshold=0.5).sum(dim=0)
-            #     # so = nn.Sigmoid(dim=None)
-            #     # paste_mask_per_gt = so((paste_mask_per_gt-0.5)*1000)
-            #     paste_mask_per_gt = (paste_mask_per_gt >= len(indexes)/2)
-                
-            #     # pred_masks_per_gt.append(paste_masks_in_image(pred_logits_per_gt, pred_boxes_per_gt, image.shape[-2:]))
-            #     pred_masks_per_gt.append(paste_mask_per_gt)
+                ## paste pred logit masks to image
+                paste_mask_per_gt = paste_masks_in_image(torch.sigmoid(pred_logits_per_gt), pred_boxes_per_gt, image.shape[-2:], threshold=0.5).sum(dim=0)
+                # so = nn.Sigmoid(dim=None)
+                # paste_mask_per_gt = so((paste_mask_per_gt-0.5)*1000)
+                paste_mask_per_gt = (paste_mask_per_gt >= len(indexes)/2)
+                pred_masks_per_gt.append(paste_mask_per_gt)
 
-            #     # paste_masks_in_image()
             
             inputs1, inputs2, gt_order1, gt_order2 = [], [], [], []
-            # for i, pred_mask_i in enumerate(pred_masks_per_gt):
-            #     for j, pred_mask_j in enumerate(pred_masks_per_gt):
-            for i, pred_mask_i in enumerate(targets[B].gt_masks):
-                for j, pred_mask_j in enumerate(targets[B].gt_masks):
+            for i, pred_mask_i in enumerate(pred_masks_per_gt):
+                for j, pred_mask_j in enumerate(pred_masks_per_gt):
+            # for i, pred_mask_i in enumerate(targets[B].gt_masks):
+            #     for j, pred_mask_j in enumerate(targets[B].gt_masks):
                     if i == j: continue
                     if pred_mask_i is None or pred_mask_j is None: continue
 
@@ -654,9 +651,9 @@ class ORCNNROIHeads(ROIHeads):
         ## no padding with MetaGraspNet ##      (800,800)
 
         ## resize image/mask (640,640) 
-        image = T.Resize((128,128))(image)
-        mask_i = T.Resize((128,128))(mask_i)
-        mask_j = T.Resize((128,128))(mask_j)
+        image = T.Resize((256,256))(image)
+        mask_i = T.Resize((256,256))(mask_i)
+        mask_j = T.Resize((256,256))(mask_j)
 
 
 
