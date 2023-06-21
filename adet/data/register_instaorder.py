@@ -17,7 +17,7 @@ def register_instaorder_instances(name, metadata, json_file, image_root):
     # 1. register a function which returns dicts
     DatasetCatalog.register(name, lambda: load_instaorder_json(json_file, image_root))
     # evaluator_type = "order"
-    evaluator_type = "amodal"
+    evaluator_type = "coco"
 
     # 2. Optionally, add metadata about this dataset,
     # since they might be useful in evaluation, visualization or logging

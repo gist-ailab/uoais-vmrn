@@ -654,9 +654,9 @@ class ORCNNROIHeads(ROIHeads):
         ## no padding with MetaGraspNet ##      (800,800)
 
         ## resize image/mask (640,640) 
-        image = T.Resize((64,64))(image)
-        mask_i = T.Resize((64,64))(mask_i)
-        mask_j = T.Resize((64,64))(mask_j)
+        image = T.Resize((128,128))(image)
+        mask_i = T.Resize((128,128))(mask_i)
+        mask_j = T.Resize((128,128))(mask_j)
 
 
 

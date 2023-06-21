@@ -14,7 +14,7 @@ from detectron2.data.dataset_mapper import DatasetMapper
 from detectron2.data.detection_utils import SizeMismatchError
 from detectron2.structures import BoxMode
 
-from .detection_utils import (annotations_to_instances, transform_instance_annotations)
+from .detection_utils import (annotations_to_instances, transform_instance_annotations, insta_annotations_to_instances)
 from .augmentation import ColorAugSSDTransform, Resize, PerlinDistortion
 
 import cv2
@@ -76,6 +76,7 @@ class DatasetMapperWithBasis(DatasetMapper):
         self.color_aug = cfg.INPUT.COLOR_AUGMENTATION
         self.depth_only = cfg.INPUT.DEPTH_ONLY
         self.perlin_distortion = cfg.INPUT.PERLIN_DISTORTION
+        self.dataset = cfg.DATASETS.TRAIN[0] if is_train else cfg.DATASETS.TEST[0]
 
         if is_train:
             self.is_wisdom = "wisdom" in cfg.DATASETS.TRAIN[0] 
@@ -101,10 +102,10 @@ class DatasetMapperWithBasis(DatasetMapper):
                     # T.RandomFlip(0.5),
                     Resize((self.img_size[1], self.img_size[0]))
                     ]
-        elif not self.color_aug and is_train:
+        elif not self.color_aug and is_train:   ## instaorder dataset
             self.augmentation_lists = [
-                T.RandomApply(T.RandomCrop("relative_range", (cr, cr))),
-                T.RandomFlip(0.5),
+                # T.RandomApply(T.RandomCrop("relative_range", (cr, cr))),
+                # T.RandomFlip(0.5),
                 Resize((self.img_size[1], self.img_size[0]))
             ]
             
@@ -202,9 +203,16 @@ class DatasetMapperWithBasis(DatasetMapper):
                 if obj.get("iscrowd", 0) == 0
             ]
             dataset_dict["annotations"] = annos
-            instances = annotations_to_instances(
-                annos, image_shape, mask_format="rle", amodal=self.amodal
-            )
+            # print('** self.dataset', self.dataset, 'insta' in self.dataset)
+            # print('image shape', image_shape)
+            if "insta" in self.dataset or 'coco_2017' in self.dataset:
+                instances = insta_annotations_to_instances(
+                    annos, image_shape, mask_format="rle"
+                )
+            else:
+                instances = annotations_to_instances(
+                    annos, image_shape, mask_format="rle", amodal=self.amodal
+                )
 
             if self.recompute_boxes:
                 instances.gt_boxes = instances.gt_masks.get_bounding_boxes()

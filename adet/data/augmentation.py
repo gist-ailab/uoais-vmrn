@@ -5,6 +5,7 @@ from fvcore.transforms import transform, Transform
 from detectron2.data.transforms import RandomCrop, StandardAugInput
 from detectron2.data.transforms.augmentation import Augmentation
 from detectron2.structures import BoxMode
+import torch
 
 from PIL import Image
 import cv2
@@ -131,6 +132,9 @@ class ResizeTransform(Transform):
         self._set_attributes(locals())
 
     def apply_image(self, img, interp=None):
+        # if img.shape[:2] != (self.h, self.w):
+        #     print('**** ', img.shape[:2], self.h, self.w)
+        self.h, self.w = img.shape[0], img.shape[1]
         assert img.shape[:2] == (self.h, self.w)
         assert len(img.shape) <= 4
         interp_method = interp if interp is not None else self.interp

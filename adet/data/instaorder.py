@@ -12,7 +12,7 @@ from pycocotools.coco import COCO
 from detectron2.structures import BoxMode, PolygonMasks, Boxes
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from pycocotools import mask as maskUtils
-
+import cvbase as cvb
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,20 @@ __all__ = ["load_instaorder_json"]
 
 
 def load_instaorder_json(json_file, image_root, dataset_name=None, extra_annotation_keys=None):
+    if 'train' in json_file:
+        order_json_file = json_file.replace('instances_train2017', 'InstaOrder_train2017')
+    elif 'val' in json_file:
+        order_json_file = json_file.replace('instances_val2017', 'InstaOrder_val2017')
+    order_json_file = PathManager.get_local_path(order_json_file)
     json_file = PathManager.get_local_path(json_file)
+
     with contextlib.redirect_stdout(io.StringIO()):
         coco_api = COCO(json_file)
+    data_order = cvb.load(order_json_file)['annotations']
 
-    img_ids = sorted(coco_api.imgs.keys())
+    img_ids = sorted([x['image_id'] for x in data_order])
+
+    # img_ids = sorted(coco_api.imgs.keys())
     imgs = coco_api.loadImgs(img_ids)
     anns = [coco_api.imgToAnns[img_id] for img_id in img_ids]
     total_num_valid_anns = sum([len(x) for x in anns])
@@ -35,21 +44,30 @@ def load_instaorder_json(json_file, image_root, dataset_name=None, extra_annotat
             f"{total_num_valid_anns} of them match to images in the file."
         )
 
-    imgs_anns = list(zip(imgs, anns))
+    imgs_anns = list(zip(imgs, anns, data_order))
     logger.info("Loaded {} images in COCO format from {}".format(len(imgs_anns), json_file))
 
     dataset_dicts = []
-    ann_keys = ["bbox", "category_id", "visible_bbox", "area"] + (extra_annotation_keys or [])
+    ann_keys = ["bbox", "category_id", "area"] + (extra_annotation_keys or [])
 
     num_instances_without_valid_segmentation = 0
-    for (img_dict, anno_dict_list) in imgs_anns:
+    for (img_dict, anno_dict_list, order_dict) in imgs_anns:
         record = {}
         record["file_name"] = image_root + img_dict["file_name"]
-        record["depth_file_name"] = image_root + img_dict["depth_file_name"]
         record["height"] = img_dict["height"]
         record["width"] = img_dict["width"]
-        record["rel_mat"] = img_dict["rel_mat"]
-        image_id = record["image_id"] = img_dict["image_id"]
+        image_id = record["image_id"] = img_dict["id"]
+        record["rel_mat"] = np.zeros((len(order_dict['instance_ids']), len(order_dict['instance_ids'])))
+        for i, data in enumerate(order_dict['occlusion']):
+            occ_str = data['order']
+            if '&' in occ_str:
+                idx1, idx2 = list(map(int, occ_str.split(' & ')[0].split('<')))
+                record['rel_mat'][idx2][idx1] = -1
+                record['rel_mat'][idx1][idx2] = -1
+            else:
+                idx1, idx2 = list(map(int, occ_str.split('<')))
+                record['rel_mat'][idx2][idx1] = -1
+
 
         objs = []
         for anno in anno_dict_list:
@@ -58,11 +76,6 @@ def load_instaorder_json(json_file, image_root, dataset_name=None, extra_annotat
             obj = {key: anno[key] for key in ann_keys if key in anno}
             if anno.get("segmentation", None):  # either list[list[float]] or dict(RLE)
                 obj["segmentation"] = anno.get("segmentation", None)
-            if anno.get("visible_mask", None): 
-                obj["visible_mask"] = anno.get("visible_mask", None)
-            if anno.get("occluded_mask", None):
-                obj["occluded_mask"] = anno.get("occluded_mask", None)
-            obj["occluded_rate"] = anno.get("occluded_rate", None)
 
             obj["bbox_mode"] = BoxMode.XYWH_ABS     # (x0, y0, w, h)
         
@@ -82,3 +95,31 @@ def load_instaorder_json(json_file, image_root, dataset_name=None, extra_annotat
     return dataset_dicts
 
 
+
+
+if __name__ == "__main__":
+    from detectron2.utils.logger import setup_logger
+    from detectron2.utils.visualizer import Visualizer
+    import os, sys
+    import tqdm
+    
+
+    logger = setup_logger(name=__name__)
+
+    dicts = load_instaorder_json("/ailab_mat/dataset/InstaOrder/data/COCO/annotations/instances_train2017.json",
+                           "datasets/COCO/train2017/")
+    logger.info("Done loading {} samples.".format(len(dicts)))
+    print("Done loading {} samples.".format(len(dicts)))
+    dirname = "insta-data-vis"
+
+    os.makedirs(dirname, exist_ok=True)
+    i = 0
+    for d in (dicts):
+        print(d["file_name"])
+        img = Image.open(d["file_name"])
+        visualizer = Visualizer(img)
+        vis = visualizer.draw_dataset_dict(d)
+        fpath = os.path.join(dirname, os.path.basename(d["file_name"]))
+        vis.save(fpath)
+        i += 1
+        if i==5: break

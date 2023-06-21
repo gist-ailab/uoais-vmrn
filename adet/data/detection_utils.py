@@ -42,9 +42,27 @@ def transform_segm_in_anno(annotation, transforms, key):
     if isinstance(segm, list):
         # polygons
         polygons = [np.asarray(p).reshape(-1, 2) for p in segm]
-        annotation[key] = [
+        annotation["segmentation"] = [
             p.reshape(-1) for p in transforms.apply_polygons(polygons)
         ]
+        # # polygons
+        # rles = mask_utils.frPyObjects(segm, transforms[2].h, transforms[2].w)
+        # rle = mask_utils.merge(rles)
+        # rle['counts'] = rle['counts'].decode('ascii')
+
+        # mask = mask_utils.decode(rle)
+        # mask = transforms.apply_segmentation(mask)
+        # annotation[key] = mask_to_rle(np.array(mask, dtype=np.uint8, order='F'))
+        
+        # # polygons = [np.asarray(p).reshape(-1, 2) for p in segm]
+        # # annotation[key] = [
+        # #     p.reshape(-1) for p in transforms.apply_polygons(polygons)
+        # # ]
+        # # # h, w = ()
+        # # # rles = mask_utils.frPyObjects(segm, image['height'], image['width'])
+        # # # amodal_rle = mask_utils.merge(rles)
+        # # # amodal_rle['counts'] = amodal_rle['counts'].decode('ascii')
+        
     elif isinstance(segm, dict):
         # RLE
         mask = mask_utils.decode(segm)
@@ -58,7 +76,42 @@ def transform_segm_in_anno(annotation, transforms, key):
         )
     return annotation
 
-def convert_to_mask(segms):
+def insta_transform_segm_in_anno(annotation, transforms, key, image_size):
+    segm = annotation[key]
+    # print('**', key, segm)
+    if isinstance(segm, dict):
+        # RLE
+        if isinstance(segm['counts'], list):
+            segm = annotation[key] = [segm['counts']]
+            rles = mask_utils.frPyObjects(segm, image_size[0], image_size[1])
+            rle = mask_utils.merge(rles)
+            rle['counts'] = rle['counts'].decode('ascii')
+
+            mask = mask_utils.decode(rle)
+            mask = transforms.apply_segmentation(mask)
+            annotation[key] = mask_to_rle(np.array(mask, dtype=np.uint8, order='F'))
+        else:
+            mask = mask_utils.decode(segm)
+            mask = transforms.apply_segmentation(mask)
+            annotation[key] = mask_to_rle(np.array(mask, dtype=np.uint8, order='F'))
+    elif isinstance(segm, list):
+        # polygons
+        rles = mask_utils.frPyObjects(segm, image_size[0], image_size[1])
+        rle = mask_utils.merge(rles)
+        rle['counts'] = rle['counts'].decode('ascii')
+
+        mask = mask_utils.decode(rle)
+        mask = transforms.apply_segmentation(mask)
+        annotation[key] = mask_to_rle(np.array(mask, dtype=np.uint8, order='F'))
+    else:
+        raise ValueError(
+            "Cannot transform segmentation of type '{}'!"
+            "Supported types are: polygons as list[list[float] or ndarray],"
+            " COCO-style RLE as a dict.".format(type(segm))
+        )
+    return annotation
+
+def convert_to_mask(segms, image_size=(480, 640)):
     masks = []
     for segm in segms:
         if isinstance(segm, list):
@@ -117,6 +170,7 @@ def transform_instance_annotations(
     annotation["bbox_mode"] = BoxMode.XYXY_ABS
 
     if "segmentation" in annotation:
+        # annotation = insta_transform_segm_in_anno(annotation, transforms, "segmentation", image_size)
         annotation = transform_segm_in_anno(annotation, transforms, "segmentation")
 
     if "visible_mask" in annotation:
@@ -180,6 +234,29 @@ def annotations_to_instances(annos, image_size, mask_format="polygon", amodal=Tr
         else:
             target.gt_masks = merge_bitmask(visible_masks)
             target.gt_boxes = target.gt_masks.get_bounding_boxes()
+
+    if not annos:
+        return target
+
+    return target
+
+
+
+def insta_annotations_to_instances(annos, image_size, mask_format="polygon"):
+    
+    boxes = [BoxMode.convert(obj["bbox"], obj["bbox_mode"], BoxMode.XYXY_ABS) for obj in annos]
+    target = Instances(image_size)
+    target.gt_boxes = Boxes(boxes)
+
+    classes = [int(obj["category_id"]) for obj in annos]
+    classes = torch.tensor(classes, dtype=torch.int64)
+    target.gt_classes = classes
+
+    if len(annos) and "segmentation" in annos[0]:
+
+        segmentation = convert_to_mask([obj["segmentation"] for obj in annos])
+        target.gt_masks = merge_bitmask(segmentation)
+        target.gt_boxes = target.gt_masks.get_bounding_boxes()
 
     if not annos:
         return target

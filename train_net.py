@@ -158,7 +158,7 @@ class Trainer(DefaultTrainer):
             )
         if len(evaluator_list) == 1:
             return evaluator_list[0]
-        print('** evaluator_list', evaluator_list)
+        # print('** evaluator_list', evaluator_list)
         return DatasetEvaluators(evaluator_list)
 
     @classmethod
@@ -299,7 +299,8 @@ if __name__ == "__main__":
         # args.gpu = '1'
         # args.eval_only = True
         # args.config_file = 'output/MUI18/config.yaml'
-        args.config_file = 'configs/meta_uoais_insta.yaml'
+        # args.config_file = 'configs/meta_uoais_insta.yaml'
+        args.config_file = 'configs/insta_mask.yaml'
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)
