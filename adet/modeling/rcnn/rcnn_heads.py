@@ -529,6 +529,10 @@ class ORCNNROIHeads(ROIHeads):
         for B, image in enumerate(images):
             target = targets[B]
             pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
+            mask_idx += len(pred_gt_boxes[B]['pred'])
+            # if len(pred_gt_boxes[B]['pred']) < 20:
+            #     print(len(pred_gt_boxes[B]['pred']))
+            #     print()
 
             pred_boxes_per_image = pred_gt_boxes[B]['pred']
             gt_boxes_per_image = pred_gt_boxes[B]['gt']
@@ -570,6 +574,8 @@ class ORCNNROIHeads(ROIHeads):
             #     for j, pred_mask_j in enumerate(targets[B].gt_masks):
                     if i == j: continue
                     if pred_mask_i is None or pred_mask_j is None: continue
+                    if gt_rel_mat[B][i][j] == 0:
+                        if np.random.rand() < 0.3: continue
 
                     img, mask_i, mask_j = self._preprocess_order(image, pred_mask_i.unsqueeze(0), pred_mask_j.unsqueeze(0))
                     inputs1.append(torch.cat([mask_i, mask_j, img], dim=0).unsqueeze(0))
@@ -586,7 +592,7 @@ class ORCNNROIHeads(ROIHeads):
                         gt_order1.append(torch.FloatTensor([[0., 0.]]))    ## does i occlude j? -> no -> 0      /       does j occlues i? -> no -> 0
                         gt_order2.append(torch.FloatTensor([[0., 0.]]))    ## does j occlude i? -> no -> 0      /       does i occlues j? -> no -> 0
                     
-                    if len(gt_order1) >= 30:
+                    if len(gt_order1) >= 4:
                         gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
                         gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
                         output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
@@ -611,29 +617,29 @@ class ORCNNROIHeads(ROIHeads):
                         inputs1, gt_order1 = [], []
                         inputs2, gt_order2 = [], []
 
-            if len(gt_order1):
-                gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
-                gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
-                output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
-                output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
+            # if len(gt_order1):
+            #     gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
+            #     gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
+            #     output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
+            #     output2 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs2, dim=0)))
 
-                # # ## weighted loss
-                # mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
-                # for k in range(gt_order1.shape[0]):
-                #     if gt_order1[k, 1] > 0:
-                #         mask1[k] = 5
-                #     if gt_order2[k, 1] > 0:
-                #         mask2[k] = 5
+            #     # # ## weighted loss
+            #     # mask1 = mask2 = torch.ones(gt_order1.shape[0]).to(device=images.device)
+            #     # for k in range(gt_order1.shape[0]):
+            #     #     if gt_order1[k, 1] > 0:
+            #     #         mask1[k] = 5
+            #     #     if gt_order2[k, 1] > 0:
+            #     #         mask2[k] = 5
 
-                # loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1).mean() + \
-                #                     mask2 * self.order_criterion(output2, gt_order2).mean())
+            #     # loss += torch.mean(mask1 * self.order_criterion(output1, gt_order1).mean() + \
+            #     #                     mask2 * self.order_criterion(output2, gt_order2).mean())
                 
-                # ## unweighted loss
-                loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
+            #     # ## unweighted loss
+            #     loss += (self.order_criterion(output1, gt_order1) + self.order_criterion(output2, gt_order2))
 
-        # del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
-        #     pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
-        del gt_order1, gt_order2
+        del pred_logits_per_image, pred_boxes_per_image, gt_boxes_per_image, target_gt_boxes, \
+            pred_indexes, pred_logits_per_gt, pred_masks_per_gt, gt_order1, gt_order2
+        # del gt_order1, gt_order2
 
         return loss
 
@@ -641,6 +647,7 @@ class ORCNNROIHeads(ROIHeads):
         import torchvision.transforms as T
         from torchvision.transforms.functional import pad
         from detectron2.layers import paste_masks_in_image
+        import torchvision.transforms as T
 
         ## pad image/mask    (480,640) -> (640,640)
         # # COCOA   (480,640)
@@ -651,9 +658,11 @@ class ORCNNROIHeads(ROIHeads):
         ## no padding with MetaGraspNet ##      (800,800)
 
         ## resize image/mask (640,640) 
-        image = T.Resize((256,256))(image)
-        mask_i = T.Resize((256,256))(mask_i)
-        mask_j = T.Resize((256,256))(mask_j)
+        image = T.Resize((64,64))(image)
+        mean, std = image.mean([1,2]), image.std([1,2])
+        image = T.Normalize(mean, std)(image)
+        mask_i = T.Resize((64,64))(mask_i)
+        mask_j = T.Resize((64,64))(mask_j)
 
 
 

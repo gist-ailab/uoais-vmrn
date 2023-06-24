@@ -102,6 +102,13 @@ for i, mask in enumerate(pred_masks):
 
 """
 
+"""
+for i, mask in enumerate(pred_masks_per_gt):
+    mask = mask.detach().cpu()
+    plt.imshow(mask); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_paste_mask{i}.png', bbox_inches='tight',transparent=True, pad_inches=0)
+"""
+
+
 
 ## pred logit image
 """

@@ -63,6 +63,7 @@ class InstaRCNN(GeneralizedRCNN):
 
         features = self.backbone(images.tensor)
 
+        from detectron2.modeling.proposal_generator import StandardRPNHead
         if self.proposal_generator is not None:
             proposals, proposal_losses = self.proposal_generator(images, features, gt_instances)
         else:
