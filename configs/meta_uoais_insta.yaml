@@ -83,5 +83,5 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-OUTPUT_DIR: "output/d/"
-# OUTPUT_DIR: "output/MUI26/"
+# OUTPUT_DIR: "output/d/"
+OUTPUT_DIR: "output/MUI31/"

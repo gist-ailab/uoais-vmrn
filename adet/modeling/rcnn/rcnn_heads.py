@@ -442,7 +442,6 @@ class ORCNNROIHeads(ROIHeads):
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
         image = images[0]
-        draw_image = image.permute(1,2,0).cpu().numpy()
         pred_boxes = pred_instances[0].pred_boxes.tensor            # 4, 4
         gt_boxes = targets[0].gt_boxes.tensor                       # 3, 4
         pred_masks = pred_instances[0].pred_visible_masks           # 4,1,28,28
@@ -592,7 +591,7 @@ class ORCNNROIHeads(ROIHeads):
                         gt_order1.append(torch.FloatTensor([[0., 0.]]))    ## does i occlude j? -> no -> 0      /       does j occlues i? -> no -> 0
                         gt_order2.append(torch.FloatTensor([[0., 0.]]))    ## does j occlude i? -> no -> 0      /       does i occlues j? -> no -> 0
                     
-                    if len(gt_order1) >= 4:
+                    if len(gt_order1) >= 8:
                         gt_order1 = torch.cat(gt_order1, dim=0).to(device=images.device)
                         gt_order2 = torch.cat(gt_order2, dim=0).to(device=images.device)
                         output1 = torch.sigmoid(self.order_recovery_head(torch.cat(inputs1, dim=0)))
@@ -658,11 +657,11 @@ class ORCNNROIHeads(ROIHeads):
         ## no padding with MetaGraspNet ##      (800,800)
 
         ## resize image/mask (640,640) 
-        image = T.Resize((64,64))(image)
+        image = T.Resize((256,256))(image)
         mean, std = image.mean([1,2]), image.std([1,2])
         image = T.Normalize(mean, std)(image)
-        mask_i = T.Resize((64,64))(mask_i)
-        mask_j = T.Resize((64,64))(mask_j)
+        mask_i = T.Resize((256,256))(mask_i)
+        mask_j = T.Resize((256,256))(mask_j)
 
 
 
