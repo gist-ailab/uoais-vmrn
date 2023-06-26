@@ -15,7 +15,7 @@ plt.imshow(im); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{
 
 
 
-img_idx = '2114_4'
+img_idx = '4152_23'
 
 """
 import torchvision.transforms as T
@@ -61,6 +61,7 @@ f.close()
 
 import matplotlib.pyplot as plt
 plt.axis('off')
+img = image.permute(1,2,0).cpu()
 plt.imshow(img); plt.savefig(f'/ailab_mat/personal/rho_heeseon/graduation/part3/{img_idx}_img.png', bbox_inches='tight',transparent=True, pad_inches=0);
 
 

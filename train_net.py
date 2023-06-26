@@ -296,10 +296,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_file == '':
-        # args.gpu = '1'
+        args.gpu = '4'
         # args.eval_only = True
         # args.resume = True
-        # args.config_file = 'output/MUI18/config.yaml'
         args.config_file = 'configs/meta_uoais_insta.yaml'
         # args.config_file = 'output/MUI23/config.yaml'
 

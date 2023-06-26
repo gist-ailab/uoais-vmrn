@@ -286,6 +286,7 @@ class ORCNNROIHeads(ROIHeads):
             self._init_order_recovery_head(cfg)
             # self.order_criterion = nn.MSELoss(reduction='none')
             self.order_criterion = nn.BCELoss()
+            self.mask_type = cfg.MODEL.ROI_ORDER_HEAD.MASK_TYPE
 
     def _init_box_head(self, cfg):
         # fmt: off
@@ -433,12 +434,12 @@ class ORCNNROIHeads(ROIHeads):
             pred_instances, box_head_features = self._forward_box(features_list, proposals)
             if self.order_recovery:
                 pred_instances, pred_mask_logits, _ = self._forward_masks(features, pred_instances, box_head_features)
-                pred_rel_mat = self._inference_order(images, pred_instances, targets, gt_rel_mat)
+                pred_rel_mat = self._inference_order(images, pred_instances, targets)
             else:
                 pred_instances = self._forward_masks(features, pred_instances, box_head_features)
-            return pred_instances, pred_rel_mat
+            return pred_instances, pred_rel_mat, gt_rel_mat
         
-    def _inference_order(self, images, pred_instances, targets, gt_rel_mat):
+    def _inference_order(self, images, pred_instances, targets):
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
         image = images[0]
@@ -529,14 +530,11 @@ class ORCNNROIHeads(ROIHeads):
             target = targets[B]
             pred_logits_per_image = pred_mask_logits[mask_idx:mask_idx+len(pred_gt_boxes[B]['pred'])]
             mask_idx += len(pred_gt_boxes[B]['pred'])
-            # if len(pred_gt_boxes[B]['pred']) < 20:
-            #     print(len(pred_gt_boxes[B]['pred']))
-            #     print()
 
             pred_boxes_per_image = pred_gt_boxes[B]['pred']
             gt_boxes_per_image = pred_gt_boxes[B]['gt']
-
             target_gt_boxes = target.gt_boxes.tensor
+
             pred_indexes = [[] for _ in range(len(target_gt_boxes))]
             for i, gt_box in enumerate(gt_boxes_per_image):
                 for j, target_gt in enumerate(target_gt_boxes):
@@ -553,15 +551,11 @@ class ORCNNROIHeads(ROIHeads):
                     continue
 
                 ## mean of image sized pred masks
-                # pred_logits_per_gt = pred_logits_per_image[indexes].mean(dim=0)
-                # pred_masks_per_gt.append(torch.sigmoid(pred_logits_per_gt) > 0.5)
                 pred_logits_per_gt = pred_logits_per_image[indexes]
                 pred_boxes_per_gt = pred_boxes_per_image[indexes]
 
                 ## paste pred logit masks to image
                 paste_mask_per_gt = paste_masks_in_image(torch.sigmoid(pred_logits_per_gt), pred_boxes_per_gt, image.shape[-2:], threshold=0.5).sum(dim=0)
-                # so = nn.Sigmoid(dim=None)
-                # paste_mask_per_gt = so((paste_mask_per_gt-0.5)*1000)
                 paste_mask_per_gt = (paste_mask_per_gt >= len(indexes)/2)
                 pred_masks_per_gt.append(paste_mask_per_gt)
 
@@ -663,8 +657,6 @@ class ORCNNROIHeads(ROIHeads):
         mask_i = T.Resize((256,256))(mask_i)
         mask_j = T.Resize((256,256))(mask_j)
 
-
-
         return image, mask_i, mask_j
 
 
@@ -755,7 +747,7 @@ class ORCNNROIHeads(ROIHeads):
             
         elif pred_target == "A":
             mask_logits, output_features = self.amodal_mask_head(input_features, proposals, box_head_features)
-            loss = mask_rcnn_loss(mask_logits, proposals, "gt_masks")
+            loss, pred_mask_logits = mask_rcnn_loss(mask_logits, proposals, "gt_masks")
             losses["loss_amodal_mask"] = loss
             logits["amodal"] = mask_logits
 
@@ -772,13 +764,18 @@ class ORCNNROIHeads(ROIHeads):
                                 weight=torch.Tensor([1, n_noocc/n_occ]).to(device=gt_occludeds.device))
             losses["loss_occ_cls"] = loss
         
-        if self.order_recovery and pred_target == "V":
+        if self.order_recovery and self.mask_type=="visible" and pred_target == "V":
             pred_gt_boxes = []
             for p in proposals:
                 pred_gt_boxes.append({'pred': p.proposal_boxes.tensor,
                                       'gt': p.gt_boxes.tensor})
             return losses, output_features, logits, pred_mask_logits, pred_gt_boxes
-            
+        elif self.order_recovery and self.mask_type == "amodal" and pred_target == "A":
+            pred_gt_boxes = []
+            for p in proposals:
+                pred_gt_boxes.append({'pred': p.proposal_boxes.tensor,
+                                      'gt': p.gt_boxes.tensor})
+            return losses, output_features, logits, pred_mask_logits, pred_gt_boxes
         return losses, output_features, logits
 
     def _inference_single_mask(self, pred_target, features, mask_features_list, 
@@ -843,10 +840,19 @@ class ORCNNROIHeads(ROIHeads):
             logits = {}
             mask_features_list = []
             for pred_target in self.prediction_order:
-                if self.order_recovery and pred_target == "V":
-                    losses, mask_features, logits, pred_mask_logits, pred_gt_boxes = \
-                        self._forward_single_mask(pred_target, features, mask_features_list,\
-                                                proposals, box_head_features, losses, logits)
+                if self.order_recovery:
+                    if self.mask_type == "visible" and pred_target == "V":
+                        losses, mask_features, logits, pred_mask_logits, pred_gt_boxes = \
+                            self._forward_single_mask(pred_target, features, mask_features_list,\
+                                                    proposals, box_head_features, losses, logits)
+                    elif self.mask_type == "amodal" and pred_target == "A":
+                        losses, mask_features, logits, pred_mask_logits, pred_gt_boxes = \
+                            self._forward_single_mask(pred_target, features, mask_features_list,\
+                                                    proposals, box_head_features, losses, logits)
+                    else:
+                        losses, mask_features, logits = \
+                            self._forward_single_mask(pred_target, features, mask_features_list,\
+                                                    proposals, box_head_features, losses, logits)
                 else:
                     losses, mask_features, logits = \
                         self._forward_single_mask(pred_target, features, mask_features_list,\

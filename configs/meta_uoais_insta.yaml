@@ -44,9 +44,8 @@ MODEL:
   ORDER_RECOVERY_ON: True
   ROI_ORDER_HEAD:
     NAME: "OrderRecoveryHead"
-  #   NUM_FC: 2
-  #   NUM_CONV: 4
     POOLER_RESOLUTION: 28
+    MASK_TYPE: "amodal"
   BOXINST:
     ENABLED: False
   MASK_ON: True
@@ -83,5 +82,5 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-# OUTPUT_DIR: "output/d/"
-OUTPUT_DIR: "output/MUI31/"
+OUTPUT_DIR: "output/d/"
+# OUTPUT_DIR: "output/MUI32/"
