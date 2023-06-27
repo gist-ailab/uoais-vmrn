@@ -252,7 +252,7 @@ def setup(args):
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    # cfg.MODEL.WEIGHTS = 'output/MUI22/model_final.pth'
+    # cfg.MODEL.WEIGHTS = 'output/MUI31/model_final.pth'
     cfg.freeze()
     default_setup(cfg, args)
 
@@ -296,11 +296,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_file == '':
-        args.gpu = '4'
-        # args.eval_only = True
+        args.gpu = '5'
+        args.eval_only = True
         # args.resume = True
-        args.config_file = 'configs/meta_uoais_insta.yaml'
-        # args.config_file = 'output/MUI23/config.yaml'
+        # args.config_file = 'configs/meta_uoais_insta.yaml'
+        args.config_file = 'output/MUI31/config.yaml'
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     print("Command Line Args:", args)

@@ -31,6 +31,7 @@ from detectron2.utils.visualizer import Visualizer
 
 from .evaluator import DatasetEvaluator
 from adet.utils.post_process import detector_postprocess
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 
 
@@ -200,71 +201,87 @@ class OrderEvaluator(DatasetEvaluator):
                 print(f'Error: {len(pred)} != {len(gt)}')
                 continue
 
-            PP, PC, PN = 0, 0, 0
-            CP, CC, CN = 0, 0, 0
-            NP, NC, NN = 0, 0, 0
+            np.fill_diagonal(gt, -2)
+            np.fill_diagonal(pred, -2)
 
-            for i in range(len(gt)):
-                for j in range(len(gt)):
-                    if gt[j][i] == -1:          ## i is child of j
-                        if pred[j][i] == -1:        ## i is predicted as child of j
-                            CC += 1
-                        elif pred[i][j] == -1:      ## i is predicted as parent of j
-                            CP += 1
-                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
-                            CN += 1
-                    elif gt[i][j] == -1:        ## i is parent of j
-                        if pred[j][i] == -1:        ## i is predicted as child of j
-                            PC += 1
-                        elif pred[i][j] == -1:      ## i is predicted as parent of j
-                            PP += 1
-                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
-                            PN += 1
-                    elif gt[i][j] == 0:         ## i is no relation with j
-                        if pred[j][i] == -1:        ## i is predicted as child of j
-                            NC += 1
-                        elif pred[i][j] == -1:      ## i is predicted as parent of j
-                            NP += 1
-                        elif pred[i][j] == 0:       ## i is predicted as no relation with j
-                            NN += 1
-            conf = np.array([[PP, PC, PN],[CP, CC, CN],[NP, NC, NN]])
-            total_conf += conf
-            print(conf)
+            gt_order = gt[gt != -2].reshape(-1)
+            pred_order = pred[pred != -2].reshape(-1)
+
+            gt_order[gt_order == -1] = 1
+            pred_order[pred_order == -1] = 1
+
+            print('gt ', gt_order)
+            print('pr ', pred_order)
+
+            recall = recall_score(gt_order, pred_order, average='binary', zero_division=1)
+            precision = precision_score(gt_order, pred_order, average='binary', zero_division=1)
+            f1 = f1_score(gt_order, pred_order, average='binary', zero_division=1)
+
+        #     PP, PC, PN = 0, 0, 0
+        #     CP, CC, CN = 0, 0, 0
+        #     NP, NC, NN = 0, 0, 0
+
+        #     for i in range(len(gt)):
+        #         for j in range(len(gt)):
+        #             if gt[j][i] == -1:          ## i is child of j
+        #                 if pred[j][i] == -1:        ## i is predicted as child of j
+        #                     CC += 1
+        #                 elif pred[i][j] == -1:      ## i is predicted as parent of j
+        #                     CP += 1
+        #                 elif pred[i][j] == 0:       ## i is predicted as no relation with j
+        #                     CN += 1
+        #             elif gt[i][j] == -1:        ## i is parent of j
+        #                 if pred[j][i] == -1:        ## i is predicted as child of j
+        #                     PC += 1
+        #                 elif pred[i][j] == -1:      ## i is predicted as parent of j
+        #                     PP += 1
+        #                 elif pred[i][j] == 0:       ## i is predicted as no relation with j
+        #                     PN += 1
+        #             elif gt[i][j] == 0:         ## i is no relation with j
+        #                 if pred[j][i] == -1:        ## i is predicted as child of j
+        #                     NC += 1
+        #                 elif pred[i][j] == -1:      ## i is predicted as parent of j
+        #                     NP += 1
+        #                 elif pred[i][j] == 0:       ## i is predicted as no relation with j
+        #                     NN += 1
+        #     conf = np.array([[PP, PC, PN],[CP, CC, CN],[NP, NC, NN]])
+        #     total_conf += conf
+        #     print(conf)
         
-        print('-----------------')
-        print(total_conf)
-        PP, PC, PN = total_conf[0][0], total_conf[0][1], total_conf[0][2]
-        CP, CC, CN = total_conf[1][0], total_conf[1][1], total_conf[1][2]
-        NP, NC, NN = total_conf[2][0], total_conf[2][1], total_conf[2][2]
+        # print('-----------------')
+        # print(total_conf)
+        # PP, PC, PN = total_conf[0][0], total_conf[0][1], total_conf[0][2]
+        # CP, CC, CN = total_conf[1][0], total_conf[1][1], total_conf[1][2]
+        # NP, NC, NN = total_conf[2][0], total_conf[2][1], total_conf[2][2]
 
 
-        parent_precision = PP / (PP + CP + NP) if (PP + CP + NP) else 0
-        parent_recall = PP / (PP + PC + PN) if (PP + PC + PN) else 0
-        child_precision = CC / (PC + CC + NC) if (PC + CC + NC) else 0
-        child_recall = CC / (CP + CC + CN) if (CP + CC + CN) else 0
-        none_precision = NN / (PN + CN + NN) if (PN + CN + NN) else 0
-        none_recall = NN / (NP + NC + NN) if (NP + NC + NN) else 0
-        print('[total] acc', (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN), \
-            '\n[Parent] precision', parent_precision, '\trecall', parent_recall, \
-            '\n[Child] precision', child_precision, '\trecall', child_recall, \
-            '\n[None] precision', none_precision, '\trecall', none_recall) 
+        # parent_precision = PP / (PP + CP + NP) if (PP + CP + NP) else 0
+        # parent_recall = PP / (PP + PC + PN) if (PP + PC + PN) else 0
+        # child_precision = CC / (PC + CC + NC) if (PC + CC + NC) else 0
+        # child_recall = CC / (CP + CC + CN) if (CP + CC + CN) else 0
+        # none_precision = NN / (PN + CN + NN) if (PN + CN + NN) else 0
+        # none_recall = NN / (NP + NC + NN) if (NP + NC + NN) else 0
+        # print('[total] acc', (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN), \
+        #     '\n[Parent] precision', parent_precision, '\trecall', parent_recall, \
+        #     '\n[Child] precision', child_precision, '\trecall', child_recall, \
+        #     '\n[None] precision', none_precision, '\trecall', none_recall)
+        print('recall: ', recall*100, 'precision: ', precision*100, 'f1: ', f1*100)
         
         ## return res
         res = {
-            'accuracy': (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN),
-            'parent_precision': parent_precision, 
-            'parent_recall': parent_recall,
-            'child_precision': child_precision,
-            'child_recall': child_recall,
-            'none_precision': none_precision,
-            'none_recall': none_recall,
+            # 'accuracy': (PP+CC+NN)/(PP+PC+PN+CP+CC+CN+NP+NC+NN),
+            # 'parent_precision': parent_precision, 
+            # 'parent_recall': parent_recall,
+            # 'child_precision': child_precision,
+            # 'child_recall': child_recall,
+            # 'none_precision': none_precision,
+            # 'none_recall': none_recall,
+            'recall': recall*100,
+            'precision': precision*100,
+            'f1': f1*100,
         }
 
         self._results["order_recovery"] = res
-
-
-
-
 
 
     def _eval_predictions(self, tasks):

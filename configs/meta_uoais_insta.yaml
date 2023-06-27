@@ -45,7 +45,7 @@ MODEL:
   ROI_ORDER_HEAD:
     NAME: "OrderRecoveryHead"
     POOLER_RESOLUTION: 28
-    MASK_TYPE: "amodal"
+    MASK_TYPE: "visible"
   BOXINST:
     ENABLED: False
   MASK_ON: True

@@ -430,12 +430,13 @@ class ORCNNROIHeads(ROIHeads):
         else:
             # During inference cascaded prediction is used: the mask and keypoints heads are only
             # applied to the top scoring box detections.
+            del gt_rel_mat
             features_list = [features[f] for f in self.in_features]
             pred_instances, box_head_features = self._forward_box(features_list, proposals)
             if self.order_recovery:
                 pred_instances, pred_mask_logits, _ = self._forward_masks(features, pred_instances, box_head_features)
                 pred_rel_mat = self._inference_order(images, pred_instances, targets)
-                return pred_instances, pred_rel_mat, gt_rel_mat
+                return pred_instances, pred_rel_mat
             else:
                 pred_instances = self._forward_masks(features, pred_instances, box_head_features)
                 return pred_instances, {}
@@ -495,11 +496,18 @@ class ORCNNROIHeads(ROIHeads):
                                      paste_masks[matched_pred_idxes_of_gt_object[i]].to(image.get_device()).unsqueeze(0),  \
                                      image], dim=0)
                 
-                output1 = torch.sigmoid(self.order_recovery_head(inputs1.unsqueeze(0)))
-                output2 = torch.sigmoid(self.order_recovery_head(inputs2.unsqueeze(0)))
+                output1 = self.order_recovery_head(inputs1.unsqueeze(0))
+                output2 = self.order_recovery_head(inputs2.unsqueeze(0))
 
-                if output1[0][1]: pred_rel_mat[i][j] = -1
-                if output2[0][1]: pred_rel_mat[j][i] = -1
+                prob_1_over_2 = (output1[:, 0] + output2[:, 1]) / 2     ## probability that i occludes j
+                prob_2_over_1 = (output1[:, 1] + output2[:, 0]) / 2     ## probability that j occludes i
+                
+                is_1_over_2 = prob_1_over_2.cpu().numpy().item() > 0.5  ## i occludes j
+                is_2_over_1 = prob_2_over_1.cpu().numpy().item() > 0.5  ## j occludes i
+
+                if is_1_over_2: pred_rel_mat[j][i] = -1     ## j is occluded by i
+                if is_2_over_1: pred_rel_mat[i][j] = -1     ## i is occluded by j
+
         # print(np.sum(pred_rel_mat))
         # if np.sum(pred_rel_mat):
         #     print(matched_pred_idxes_of_gt_object)
@@ -566,7 +574,7 @@ class ORCNNROIHeads(ROIHeads):
                 for j, pred_mask_j in enumerate(pred_masks_per_gt):
             # for i, pred_mask_i in enumerate(targets[B].gt_masks):
             #     for j, pred_mask_j in enumerate(targets[B].gt_masks):
-                    if i == j: continue
+                    if i >= j: continue
                     if pred_mask_i is None or pred_mask_j is None: continue
                     if gt_rel_mat[B][i][j] == 0:
                         if np.random.rand() < 0.3: continue
