@@ -60,8 +60,8 @@ SOLVER:
   CLIP_GRADIENTS:
     ENABLED: True
 DATASETS:
-  TRAIN: ("meta_sim_train_m2",)
-  TEST: ("meta_sim_val_m2",)
+  TRAIN: ("meta_sim_train_m4",)
+  TEST: ("meta_sim_val_m4",)
     
 TEST:
   EVAL_PERIOD: 90000 # no evaluation if 0
@@ -77,4 +77,4 @@ INPUT:
   AMODAL: True 
   DEPTH: False
 
-OUTPUT_DIR: "output/MU01"
+OUTPUT_DIR: "output/MU02"

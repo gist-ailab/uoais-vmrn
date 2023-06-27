@@ -435,9 +435,10 @@ class ORCNNROIHeads(ROIHeads):
             if self.order_recovery:
                 pred_instances, pred_mask_logits, _ = self._forward_masks(features, pred_instances, box_head_features)
                 pred_rel_mat = self._inference_order(images, pred_instances, targets)
+                return pred_instances, pred_rel_mat, gt_rel_mat
             else:
                 pred_instances = self._forward_masks(features, pred_instances, box_head_features)
-            return pred_instances, pred_rel_mat, gt_rel_mat
+                return pred_instances, {}
         
     def _inference_order(self, images, pred_instances, targets):
         import matplotlib.pyplot as plt
